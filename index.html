@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFID 유튜브 사운드 연동 시스템</title>
+    <style>
+        :root {
+            --primary-color: #ef4444; /* 유튜브 레드 컬러 */
+            --secondary-color: #10b981;
+            --bg-color: #f8fafc;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: #1e293b;
+        }
+        .container {
+            max-width: 550px;
+            margin: 0 auto;
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            font-size: 22px;
+            margin-bottom: 20px;
+        }
+        .tabs {
+            display: flex;
+            gap: 5px;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        .tab-btn.active {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+        .row > div {
+            flex: 1;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #dc2626;
+        }
+        button.secondary {
+            background-color: var(--secondary-color);
+        }
+        button.secondary:hover {
+            background-color: #059669;
+        }
+        .status-box {
+            margin-top: 15px;
+            padding: 12px;
+            background-color: #f1f5f9;
+            border-left: 4px solid #64748b;
+            border-radius: 4px;
+            font-size: 13px;
+            word-break: break-all;
+        }
+        /* 유튜브 플레이어를 화면에서 숨김 처리 */
+        #youtube-player-container {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>RFID 유튜브 사운드 제어 시스템</h1>
+    
+    <!-- 탭 메뉴 -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="openTab('register-tab')">카드 등록</button>
+        <button class="tab-btn" onclick="openTab('charge-tab')">미리 충전</button>
+        <button class="tab-btn" onclick="openTab('scan-tab')">인식 모드</button>
+    </div>
+
+    <!-- 1. 카드 등록 탭 -->
+    <div id="register-tab" class="tab-content active">
+        <h3>1. 유튜브 오디오 설정 및 RFID 등록</h3>
+        <div class="form-group">
+            <label for="yt-id">유튜브 영상 코드 (ID)</label>
+            <input type="text" id="yt-id" placeholder="예: dQw4w9WgXcQ" value="dQw4w9WgXcQ">
+        </div>
+        <div class="form-group row">
+            <div>
+                <label for="yt-start">시작 시간 (초)</label>
+                <input type="number" id="yt-start" value="0" min="0">
+            </div>
+            <div>
+                <label for="yt-end">종료 시간 (초)</label>
+                <input type="number" id="yt-end" value="5" min="1">
+            </div>
+        </div>
+        <button onclick="writeYoutubeToRFID()">스마트폰 RFID(NFC)에 설정 쓰기</button>
+        <div id="register-status" class="status-box">상태: 대기 중...</div>
+    </div>
+
+    <!-- 2. 미리 충전 탭 -->
+    <div id="charge-tab" class="tab-content">
+        <h3>2. 요금 충전 (Edge TTS 안내)</h3>
+        <div class="form-group">
+            <label for="charge-amount">충전할 금액</label>
+            <select id="charge-amount">
+                <option value="5000">5,000 원</option>
+                <option value="10000">10,000 원</option>
+                <option value="30000">30,000 원</option>
+            </select>
+        </div>
+        <button class="secondary" onclick="speakAndCharge()">Edge TTS 안내 및 충전</button>
+        <div id="charge-status" class="status-box">상태: 대기 중...</div>
+    </div>
+
+    <!-- 3. 인식 모드 탭 -->
+    <div id="scan-tab" class="tab-content">
+        <h3>3. RFID 카드 태그 및 유튜브 소리 재생</h3>
+        <div class="form-group">
+            <label for="category-select">카테고리 설정</label>
+            <select id="category-select">
+                <option value="음악">매장 배경음악</option>
+                <option value="안내">안내 바이럴 방송</option>
+                <option value="이벤트">이벤트 효과음</option>
+            </select>
+        </div>
+        <button onclick="startRFIDScan()">RFID 인식 모드 활성화</button>
+        <div id="scan-status" class="status-box">상태: 태그 대기 중...</div>
+    </div>
+</div>
+
+<!-- 숨겨진 유튜브 플레이어 배치 탑재 -->
+<div id="youtube-player-container">
+    <div id="yt-hidden-player"></div>
+</div>
+
+<script>
+    // 가상 가동용 전역변수
+    let virtualRFIDStorage = "dQw4w9WgXcQ|0|5"; // 초기 기본 샘플 데이터 기입
+    let player; 
+    let stopTimeout;
+
+    // 유튜브 iframe API 비동기 로드
+    const tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    // 유튜브 API 준비 완료 이벤트
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('yt-hidden-player', {
+            height: '1px',
+            width: '1px',
+            videoId: '',
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    function onPlayerReady(event) {
+        console.log("유튜브 백그라운드 오디오 플레이어 준비 완료");
+    }
+
+    function onPlayerStateChange(event) {
+        // 영상 오류나 조기 종료 핸들링 시 활용 가능
+    }
+
+    // 탭 토글러
+    function openTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    // 쿠키 매니저
+    function setCookie(name, value, seconds) {
+        const date = new Date();
+        date.setTime(date.getTime() + (seconds * 1000));
+        document.cookie = `${name}=${encodeURIComponent(value)}; expires=${date.toUTCString()}; path=/`;
+    }
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+        return null;
+    }
+
+    // [1] 유튜브 메타정보(ID|시작초|종료초)를 추출하여 RFID에 저장
+    async function writeYoutubeToRFID() {
+        const statusDiv = document.getElementById('register-status');
+        const ytId = document.getElementById('yt-id').value.trim();
+        const start = document.getElementById('yt-start').value || 0;
+        const end = document.getElementById('yt-end').value || 10;
+
+        if(!ytId) {
+            alert("유튜브 비디오 코드를 입력해 주세요.");
+            return;
+        }
+
+        // 압축 형태 포맷정의: "영상ID|시작시간|종료시간" -> 초경량 문자열 데이터화
+        const rfidPayload = `${ytId}|${start}|${end}`;
+
+        if ('NDEFReader' in window) {
+            try {
+                statusDiv.innerText = "스마트폰 뒷면에 카드를 밀착해 주세요...";
+                const ndef = new NDEFReader();
+                await ndef.write({
+                    records: [{ recordType: "text", data: rfidPayload }]
+                });
+                statusDiv.innerText = `🎉 무선 쓰기 완료: 유튜브 정보[${rfidPayload}]를 카드 내부에 각인했습니다.`;
+            } catch (error) {
+                statusDiv.innerText = `NFC 작성 실패: ${error}`;
+            }
+        } else {
+            // PC 테스트 시뮬레이션 인터페이스
+            statusDiv.innerText = "💡 [시뮬레이션 모드] 에뮬레이터 RFID 칩셋 공간에 유튜브 패키지 저장 중...";
+            setTimeout(() => {
+                virtualRFIDStorage = rfidPayload;
+                statusDiv.innerText = `🎉 [시뮬레이션 완료] 데이터 각인 성공: ${rfidPayload}`;
+            }, 1000);
+        }
+    }
+
+    // [2] 미리 충전 - Edge TTS 스피치 안내
+    function speakAndCharge() {
+        const amountSelect = document.getElementById('charge-amount');
+        const amountText = amountSelect.options[amountSelect.selectedIndex].text;
+        const statusDiv = document.getElementById('charge-status');
+
+        const phrase = `선택하신 스마트 충전 금액인 ${amountText} 결제가 대기 중입니다. 인식 탭에서 리더기에 접촉하십시오.`;
+        statusDiv.innerText = phrase;
+
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(phrase);
+            utterance.lang = 'ko-KR';
+            
+            const voices = window.speechSynthesis.getVoices();
+            const edgeVoice = voices.find(v => v.name.includes('Microsoft') || v.name.includes('Google'));
+            if (edgeVoice) utterance.voice = edgeVoice;
+
+            window.speechSynthesis.speak(utterance);
+        }
+        window.__chargeReservation = amountText;
+    }
+
+    // [3] 인식 모드 - 카드 접촉 시 리딩 및 쿠키 가공 처리 후 유튜브 스트리밍 오디오 시작
+    async function startRFIDScan() {
+        const statusDiv = document.getElementById('scan-status');
+        const category = document.getElementById('category-select').value;
+
+        if ('NDEFReader' in window) {
+            try {
+                const ndef = new NDEFReader();
+                await ndef.scan();
+                statusDiv.innerText = `[${category} 인식 작동 중] 스마트폰 뒷면에 RFID 태그를 찍어주세요.`;
+
+                ndef.onreading = event => {
+                    const decoder = new TextDecoder();
+                    for (const record of event.message.records) {
+                        const rfidData = decoder.decode(record.data);
+                        playYoutubeFromRFIDData(rfidData, category);
+                    }
+                };
+            } catch (error) {
+                statusDiv.innerText = `NFC 스캔 실행 불가: ${error}`;
+            }
+        } else {
+            // 시뮬레이션 트랙
+            statusDiv.innerText = `[${category} 시뮬레이션] 1.5초 후 RFID 모듈 접촉 감지 처리를 실행합니다.`;
+            setTimeout(() => {
+                playYoutubeFromRFIDData(virtualRFIDStorage, category);
+            }, 1500);
+        }
+    }
+
+    // RFID 원천 데이터를 복합 추출하여 쿠키 처리 후 오디오 실행
+    function playYoutubeFromRFIDData(rawPayload, category) {
+        const statusDiv = document.getElementById('scan-status');
+        const currentCharge = window.__chargeReservation || "0원";
+
+        // 요구 조건 충족: 쿠키 데이터에 잠시 임시 보관 처리 (유효수명 10초)
+        setCookie("temp_yt_payload", rawPayload, 10);
+        setCookie("temp_yt_category", category, 10);
+
+        // 쿠키 파싱
+        const cookedData = getCookie("temp_yt_payload");
+        const cookedCategory = getCookie("temp_yt_category");
+
+        if(!cookedData) return;
+
+        // "영상ID|시작초|종료초" 분할 파싱 구조화
+        const dataParts = cookedData.split('|');
+        const videoId = dataParts[0];
+        const startTime = parseInt(dataParts[1]) || 0;
+        const endTime = parseInt(dataParts[2]) || 10;
+        const duration = endTime - startTime;
+
+        statusDiv.innerHTML = `
+            <span style="color:blue; font-weight:bold;">✔ 태그 접촉 통신 성공!</span><br>
+            • 지정 카테고리: ${cookedCategory}<br>
+            • 요금 정산액: ${currentCharge}<br>
+            • 쿠키 파싱 대상 ID: <strong>${videoId}</strong> (${startTime}초 ~ ${endTime}초 재생)<br>
+            • 오디오 스트리밍 처리 완료.
+        `;
+
+        // 유튜브 플레이어 소리 재생 실행
+        if (player && typeof player.loadVideoById === 'function') {
+            // 기존 타이머 클리어
+            clearTimeout(stopTimeout);
+
+            player.loadVideoById({
+                videoId: videoId,
+                startSeconds: startTime
+            });
+            player.playVideo();
+            player.unMute(); // 음소거 강제 해제
+
+            statusDiv.innerHTML += `<br><span style="color:red; font-weight:bold;">▶ 유튜브 음성 소리 출력 중... (${duration}초 후 자동 정지)</span>`;
+
+            // 정확히 지정된 시간 간격(초) 재생 후 정지 타이머 작동
+            stopTimeout = setTimeout(() => {
+                player.stopVideo();
+                statusDiv.innerHTML += `<br><span style="color:#666;">⏹ 오디오 지정 구간 종료 및 자동 차단 완료.</span>`;
+            }, duration * 1000);
+        } else {
+            statusDiv.innerHTML += `<br><span style="color:orange;">⚠️ 유튜브 플레이어가 아직 로드되지 않았습니다. 잠시 후 다시 시도하세요.</span>`;
+        }
+
+        // 충전 정산 플래그 초기화
+        window.__chargeReservation = "0원";
+    }
+</script>
+
+</body>
+</html>
