@@ -196,7 +196,7 @@
                     <option value="어린이">어린이 (만 6~12세)</option>
                     <option value="청소년">청소년 (만 13~18세)</option>
                     <option value="일반" selected>일반 (성인)</option>
-                    <option value="고령자">고령자 (만 65세 이상)</option>
+                    <option value="고령자">고령자 (우대 승차)</option>
                 </select>
             </div>
         </div>
@@ -233,7 +233,7 @@
         <div id="charge-status" class="status-box">상태: 충전 버튼을 누르고 카드를 접촉해 주세요.</div>
     </div>
 
-    <!-- 3. 탑승 인식 및 카테고리 수정 관리 탭 -->
+    <!-- 3. 탑승 인식 및 카테고리 관리 탭 -->
     <div id="scan-tab" class="tab-content">
         <h3>3. 버스 단말기 태그 및 요금표 실시간 조회</h3>
         
@@ -244,7 +244,6 @@
             </select>
         </div>
 
-        <!-- 실시간 나이대별 요금표 뷰어 플레이스 -->
         <div id="fare-table-container"></div>
         
         <button type="button" style="margin-bottom:10px;" onclick="startRFIDScan()">단말기 태그 활성화 (스마트폰용)</button>
@@ -254,10 +253,8 @@
         
         <div id="scan-status" class="status-box">상태: 단말기 대기 중...</div>
 
-        <!-- 카테고리 설정 및 수정 분할 섹션 -->
         <div class="editor-section">
             <h4 style="margin-top:0; margin-bottom:10px; color:#475569;">⚙ 버스 요금 카테고리 설정/수정</h4>
-            
             <div class="form-group row">
                 <div>
                     <label style="font-size:12px;">버스 노선 이름</label>
@@ -268,7 +265,6 @@
                     <input type="number" id="bus-fare-input" placeholder="1500">
                 </div>
             </div>
-            
             <div class="row">
                 <button type="button" class="accent" onclick="saveBusCategory()">노선 추가 / 수정하기</button>
                 <button type="button" class="danger" onclick="deleteBusCategory()">선택 노선 삭제</button>
@@ -312,14 +308,19 @@
         updateBusSelect();
     });
 
-    function safeSpeak(text) {
+    function safeSpeak(text, onCompleteCallback) {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel(); 
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'ko-KR';
+            
+            if (onCompleteCallback) {
+                utterance.onend = onCompleteCallback; 
+            }
             window.speechSynthesis.speak(utterance);
         } else {
             alert(text);
+            if (onCompleteCallback) onCompleteCallback();
         }
     }
 
@@ -436,7 +437,7 @@
                         <th>어린이 (40%)</th>
                         <th>청소년 (70%)</th>
                         <th>일반 (성인)</th>
-                        <th>고령자 (무임)</th>
+                        <th>고령자 (우대)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -444,7 +445,7 @@
                         <td style="color:#059669; font-weight:bold;">${fareChild}원</td>
                         <td style="color:#2563eb; font-weight:bold;">${fareYouth}원</td>
                         <td style="color:#1e293b; font-weight:bold;">${fareAdult}원</td>
-                        <td style="color:#dc2626; font-weight:bold;">무료</td>
+                        <td style="color:#dc2626; font-weight:bold;">우대(0원)</td>
                     </tr>
                 </tbody>
             </table>
@@ -625,7 +626,6 @@
         const startTime = convertToSeconds(startStr);
         const endTime = convertToSeconds(endStr);
         
-        // 🛠️ 최대 재생 한계점 1초 절대 제약 조건으로 변경 완료!
         let duration = endTime - startTime;
         if (duration <= 0 || duration > 1) {
             duration = 1; 
@@ -639,27 +639,25 @@
             • <strong>조회된 현재 최종 잔액: ${cardBalance.toLocaleString()}원</strong><br>
         `;
 
-        if(age === "고령자") {
-            safeSpeak("무임 승차입니다.");
-        } else {
-            safeSpeak(`감사합니다.`);
-        }
+        // 🛠️ 멘트 시스템 전면 수정 적용 완료
+        const announcementText = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
 
-        if (player && typeof player.loadVideoById === 'function') {
-            clearTimeout(stopTimeout);
+        safeSpeak(announcementText, () => {
+            if (player && typeof player.loadVideoById === 'function') {
+                clearTimeout(stopTimeout);
 
-            player.loadVideoById({ videoId: videoId, startSeconds: startTime });
-            player.playVideo();
-            player.unMute();
+                player.loadVideoById({ videoId: videoId, startSeconds: startTime });
+                player.playVideo();
+                player.unMute();
 
-            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 나만의 커스텀 알림음 재생 중... (최대 1초 한정)</span>`;
+                statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 안내방송 종료! 커스텀 알림음 재생 시작 (최대 1초)</span>`;
 
-            // 🛠️ 1초 뒤 정확히 차단 처리되도록 타이머 바인딩 완료
-            stopTimeout = setTimeout(() => {
-                player.stopVideo();
-                statusDiv.innerHTML += `<br><span style="color:#64748b;">⏹ 1초 시간 초과로 오디오가 차단되었습니다.</span>`;
-            }, duration * 1000);
-        }
+                stopTimeout = setTimeout(() => {
+                    player.stopVideo();
+                    statusDiv.innerHTML += `<br><span style="color:#64748b;">⏹ 1초 시간 초과로 오디오가 차단되었습니다.</span>`;
+                }, duration * 1000);
+            }
+        });
     }
 </script>
 
