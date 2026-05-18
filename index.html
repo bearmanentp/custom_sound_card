@@ -158,15 +158,23 @@
             border-radius: 10px;
             margin-top: 20px;
         }
-        #youtube-player-container {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
+        .preview-player-box {
+            background-color: #000;
+            border-radius: 12px;
             overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            border: 0;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            aspect-ratio: 16 / 9;
+            width: 100%;
+        }
+        .video-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .video-controls button {
+            font-size: 12px;
+            padding: 8px;
         }
     </style>
 </head>
@@ -177,9 +185,9 @@
     <div class="subtitle">나만의 개성있는 스마트 교통카드 시스템</div>
     
     <div class="tabs">
-        <button class="tab-btn active" onclick="openTab('register-tab')">카드 설정/등록</button>
-        <button class="tab-btn" onclick="openTab('charge-tab')">잔액 충전</button>
-        <button class="tab-btn" onclick="openTab('scan-tab')">버스 탑승 인식</button>
+        <button class="tab-btn active" id="btn-register-tab" onclick="openTab('register-tab')">카드 설정/등록</button>
+        <button class="tab-btn" id="btn-charge-tab" onclick="openTab('charge-tab')">잔액 충전</button>
+        <button class="tab-btn" id="btn-scan-tab" onclick="openTab('scan-tab')">버스 탑승 인식</button>
     </div>
 
     <!-- 1. 카드 등록 탭 -->
@@ -200,22 +208,39 @@
                 </select>
             </div>
         </div>
-        <div class="form-group">
-            <label for="yt-id">나만의 승차 알림음 (유튜브 ID)</label>
-            <input type="text" id="yt-id" placeholder="예: dQw4w9WgXcQ" value="dQw4w9WgXcQ">
+        
+        <div class="form-group row">
+            <div style="flex: 2;">
+                <label for="yt-id">나만의 승차 알림음 (유튜브 ID)</label>
+                <input type="text" id="yt-id" placeholder="예: dQw4w9WgXcQ" value="dQw4w9WgXcQ" onchange="loadPreviewVideo()">
+            </div>
+            <div>
+                <label>&nbsp;</label>
+                <button type="button" class="accent" onclick="loadPreviewVideo()">영상 불러오기</button>
+            </div>
         </div>
+
+        <div class="preview-player-box">
+            <div id="yt-visible-player" style="width:100%; height:100%;"></div>
+        </div>
+
+        <div class="video-controls">
+            <button type="button" class="secondary" onclick="captureTime('start')">⏱ 현재 시점을 [시작 지점]으로 채우기</button>
+            <button type="button" class="secondary" style="background-color:#8b5cf6;" onclick="captureTime('end')">⏱ 현재 시점을 [종료 지점]으로 채우기</button>
+        </div>
+
         <div class="form-group row">
             <div>
                 <label for="yt-start">알림음 시작 지점</label>
-                <input type="text" id="yt-start" placeholder="00:10" value="00:10">
+                <input type="text" id="yt-start" placeholder="00:10.00" value="00:10.00">
             </div>
             <div>
                 <label for="yt-end">종료 지점 (최대 3초 제한)</label>
-                <input type="text" id="yt-end" placeholder="00:13" value="00:13">
+                <input type="text" id="yt-end" placeholder="00:13.00" value="00:13.00">
             </div>
         </div>
         <button type="button" style="margin-top:10px;" onclick="writePassToRFID()">스마트폰 NFC 기능으로 카드 정보 저장/수정</button>
-        <div id="register-status" class="status-box">상태: 설정 대기 중...</div>
+        <div id="register-status" class="status-box">상태: 설정 대기 중... (이 탭에서는 요금 결제가 차단됩니다)</div>
     </div>
 
     <!-- 2. 충전 탭 -->
@@ -230,7 +255,7 @@
             </select>
         </div>
         <button type="button" class="secondary" onclick="startNFCChargeMode()">NFC 충전 모드 활성화 (카드를 대세요)</button>
-        <div id="charge-status" class="status-box">상태: 충전 버튼을 누르고 카드를 접촉해 주세요.</div>
+        <div id="charge-status" class="status-box">상태: 충전 버튼을 누르고 카드를 접촉해 주세요. (이 탭에서는 요금 결제가 차단됩니다)</div>
     </div>
 
     <!-- 3. 탑승 인식 및 카테고리 관리 탭 -->
@@ -246,12 +271,14 @@
 
         <div id="fare-table-container"></div>
         
-        <button type="button" style="margin-bottom:10px;" onclick="startRFIDScan()">단말기 태그 활성화 (스마트폰용)</button>
+        <button type="button" id="scan-toggle-btn" class="accent" style="margin-bottom:10px; background-color: #4b5563;" onclick="toggleRFIDScan()">
+            단말기 태그 기능 켜기 (현재: 꺼짐)
+        </button>
         
         <button type="button" class="secondary" id="v-scan-btn" style="display:none; margin-bottom:5px;" onclick="triggerVirtualScan()">[PC 테스트] 정상 카드 태그</button>
         <button type="button" class="accent" id="v-error-btn" style="display:none; background-color:#64748b;" onclick="triggerVirtualErrorScan()">[PC 테스트] 잘못된 카드 태그</button>
         
-        <div id="scan-status" class="status-box">상태: 단말기 대기 중...</div>
+        <div id="scan-status" class="status-box">상태: 단말기 기능이 꺼져 있습니다.</div>
 
         <div class="editor-section">
             <h4 style="margin-top:0; margin-bottom:10px; color:#475569;">⚙ 버스 요금 카테고리 설정/수정</h4>
@@ -273,16 +300,12 @@
     </div>
 </div>
 
-<div id="youtube-player-container">
-    <div id="yt-hidden-player"></div>
-</div>
-
 <script>
-    // 가상 저장소 초기 잔액을 15,000원으로 세팅해 둡니다.
-    let virtualRFIDStorage = "홍길동|일반|15000|dQw4w9WgXcQ|00:10|00:13"; 
+    let virtualRFIDStorage = "홍길동|일반|15000|dQw4w9WgXcQ|00:10.00|00:13.00"; 
     let player; 
     let stopTimeout;
-    let isScanModeActive = false;
+    let isScanModeActive = false; 
+    let currentActiveTab = "register-tab"; 
     let busCategories = ["시내버스:1500", "마을버스:1200", "광역급행버스:2800"];
 
     const tag = document.createElement('script');
@@ -291,12 +314,65 @@
     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
     function onYouTubeIframeAPIReady() {
-        player = new YT.Player('yt-hidden-player', {
-            height: '1px', width: '1px', videoId: '',
+        const initialId = document.getElementById('yt-id').value.trim() || 'dQw4w9WgXcQ';
+        player = new YT.Player('yt-visible-player', {
+            videoId: initialId,
+            playerVars: {
+                'playsinline': 1,
+                'controls': 1
+            },
             events: { 
-                'onReady': () => console.log("MY PASS 오디오 모듈 준비 완료")
+                'onReady': () => console.log("MY PASS 통합 미디어 플레이어 준비 완료")
             }
         });
+    }
+
+    function loadPreviewVideo() {
+        const ytId = document.getElementById('yt-id').value.trim();
+        if(ytId && player && typeof player.loadVideoById === 'function') {
+            player.loadVideoById({ videoId: ytId });
+        }
+    }
+
+    function captureTime(type) {
+        if(!player || typeof player.getCurrentTime !== 'function') {
+            return alert("영상이 아직 준비되지 않았습니다.");
+        }
+
+        const rawTime = player.getCurrentTime(); 
+        const minutes = Math.floor(rawTime / 60);
+        const seconds = Math.floor(rawTime % 60);
+        const milliSeconds = Math.floor((rawTime % 1) * 100); 
+        
+        const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliSeconds).padStart(2, '0')}`;
+
+        if(type === 'start') {
+            document.getElementById('yt-start').value = formattedTime;
+            
+            const endRaw = rawTime + 3.0;
+            const endMin = Math.floor(endRaw / 60);
+            const endSec = Math.floor(endRaw % 60);
+            const endMilli = Math.floor((endRaw % 1) * 100);
+            document.getElementById('yt-end').value = `${String(endMin).padStart(2, '0')}:${String(endSec).padStart(2, '0')}.${String(endMilli).padStart(2, '0')}`;
+        } else if(type === 'end') {
+            const startStr = document.getElementById('yt-start').value;
+            const startSec = convertToSeconds(startStr);
+            
+            if(rawTime <= startSec) {
+                return alert("종료 지점은 시작 지점보다 뒤여야 합니다.");
+            }
+            
+            if(rawTime - startSec > 3) {
+                alert("알림음은 최대 3초까지만 재생 가능합니다! 자동으로 3초 구간으로 정렬됩니다.");
+                const maxEndRaw = startSec + 3.0;
+                const maxEndMin = Math.floor(maxEndRaw / 60);
+                const maxEndSec = Math.floor(maxEndRaw % 60);
+                const maxEndMilli = Math.floor((maxEndRaw % 1) * 100);
+                document.getElementById('yt-end').value = `${String(maxEndMin).padStart(2, '0')}:${String(maxEndSec).padStart(2, '0')}.${String(maxEndMilli).padStart(2, '0')}`;
+            } else {
+                document.getElementById('yt-end').value = formattedTime;
+            }
+        }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -324,9 +400,21 @@
 
     function convertToSeconds(timeStr) {
         if (!timeStr) return 0;
-        const parts = timeStr.trim().split(':');
-        if (parts.length === 2) return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
-        return parseInt(parts[0], 10) || 0;
+        
+        let mainStr = timeStr.trim();
+        let milli = 0;
+        
+        if (mainStr.includes('.')) {
+            const dotParts = mainStr.split('.');
+            mainStr = dotParts[0]; 
+            milli = parseFloat("0." + dotParts[1]) || 0; 
+        }
+
+        const parts = mainStr.split(':');
+        if (parts.length === 2) {
+            return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10) + milli;
+        }
+        return parseInt(parts[0], 10) + milli || 0;
     }
 
     function setCookie(name, value, seconds) {
@@ -453,11 +541,27 @@
     function openTab(tabId) {
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        
         document.getElementById(tabId).classList.add('active');
-        event.currentTarget.classList.add('active');
+        if(event && event.currentTarget) {
+            event.currentTarget.classList.add('active');
+        } else {
+            document.getElementById('btn-' + tabId).classList.add('active');
+        }
+        
+        currentActiveTab = tabId; 
+
+        if (player && typeof player.pauseVideo === 'function') {
+            player.pauseVideo();
+        }
+
+        if (tabId === 'register-tab' || tabId === 'charge-tab') {
+            isScanModeActive = false;
+            updateScanButtonUI();
+            document.getElementById('scan-status').innerText = "상태: 다른 작업을 진행 중이므로 단말기가 일시 정지되었습니다.";
+        }
     }
 
-    // 💡 변경 포인트: 카드 설정/발급 시 기존 잔액 정보를 안전하게 유지하는 알고리즘 적용
     async function writePassToRFID() {
         const statusDiv = document.getElementById('register-status');
         const name = document.getElementById('user-name').value.trim() || "승객";
@@ -468,27 +572,32 @@
 
         if(!ytId) return alert("유튜브 오디오 ID를 등록해주세요.");
 
+        const sSec = convertToSeconds(startRaw);
+        const eSec = convertToSeconds(endRaw);
+        if((eSec - sSec) > 3.05 || eSec <= sSec) { 
+            return alert("구간 설정 값에 오류가 있습니다. 종료 지점은 시작 지점보다 커야 하며 최대 3초 이내여야 합니다.");
+        }
+
         if ('NDEFReader' in window) {
-            // [실제 스마트폰 NFC 모드]
             try {
                 statusDiv.innerText = "기존 카드 정보를 읽어오는 중... 뒷면에 카드를 밀착하세요.";
                 const ndef = new NDEFReader();
                 await ndef.scan();
                 
                 ndef.onreading = async (event) => {
+                    if(currentActiveTab !== "register-tab") return;
+
                     const decoder = new TextDecoder();
                     let oldPayload = "";
                     for (const record of event.message.records) {
                         oldPayload = decoder.decode(record.data);
                     }
                     
-                    // 기존 잔액 가져오기 (없거나 깨졌다면 0원)
                     let currentBalance = 0;
                     if (oldPayload && oldPayload.split('|').length >= 3) {
                         currentBalance = parseInt(oldPayload.split('|')[2]) || 0;
                     }
                     
-                    // 잔액을 살린 상태로 새로운 카드 데이터 조합
                     const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
                     
                     await ndef.write({ records: [{ recordType: "text", data: rfidPayload }] });
@@ -499,17 +608,15 @@
                 statusDiv.innerText = `NFC 연동 실패: ${error}`;
             }
         } else {
-            // [PC 가상 시뮬레이터 모드]
             let currentBalance = 0;
             if (virtualRFIDStorage && virtualRFIDStorage.split('|').length >= 3) {
                 currentBalance = parseInt(virtualRFIDStorage.split('|')[2]) || 0;
             }
 
-            // 기존 잔액(currentBalance) 그대로 파싱해서 조합
             const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
             virtualRFIDStorage = rfidPayload;
             
-            statusDiv.innerHTML = `💡 [PC 가상 카드 정보 수정 완료] <br>• 이름: ${name} (${age}) <br>• <strong>유지된 기존 잔액: ${currentBalance.toLocaleString()}원</strong>`;
+            statusDiv.innerHTML = `💡 [PC 가상 카드 정보 수정 완료] <br>• 이름: ${name} (${age}) <br>• 시작구간: ${startRaw} ~ 종료구간: ${endRaw}<br>• <strong>유지된 기존 잔액: ${currentBalance.toLocaleString()}원</strong>`;
             safeSpeak(`${name}님의 카드 정보가 수정되었습니다.`);
         }
     }
@@ -525,6 +632,8 @@
                 statusDiv.innerText = `📡 [충전 대기] 카드를 휴대폰 뒷면에 접촉하세요. (+${inputChargeValue}원 누적)`;
 
                 ndef.onreading = async (event) => {
+                    if(currentActiveTab !== "charge-tab") return;
+
                     const decoder = new TextDecoder();
                     let oldPayload = "";
                     for (const record of event.message.records) {
@@ -560,49 +669,79 @@
         }
     }
 
-    async function startRFIDScan() {
+    async function toggleRFIDScan() {
         const statusDiv = document.getElementById('scan-status');
-        isScanModeActive = true;
-
-        if ('NDEFReader' in window) {
-            try {
-                const ndef = new NDEFReader();
-                await ndef.scan();
-                statusDiv.innerText = "🚌 실시간 잔액 조회 및 정산 결제를 시작합니다. 카드를 접촉해 주세요.";
-
-                ndef.onreading = event => {
-                    const decoder = new TextDecoder();
-                    for (const record of event.message.records) {
-                        processBusFareAndSound(decoder.decode(record.data));
-                    }
-                };
-            } catch (error) {
-                statusDiv.innerText = `센서 가동 실패: ${error}`;
-            }
+        
+        if (isScanModeActive) {
+            isScanModeActive = false;
+            updateScanButtonUI();
+            statusDiv.innerText = "상태: 단말기 태그 기능이 사용자에 의해 꺼졌습니다. (요금 결제 정지)";
         } else {
-            statusDiv.innerText = "💡 PC 가상 시뮬레이션 상태입니다. 아래의 수동 테스트 버튼을 사용하세요.";
-            document.getElementById('v-scan-btn').style.display = 'block';
-            document.getElementById('v-error-btn').style.display = 'block';
+            isScanModeActive = true;
+            updateScanButtonUI();
+            statusDiv.innerText = "🚌 실시간 잔액 조회 및 정산 결제를 시작합니다. 카드를 접촉해 주세요.";
+
+            if ('NDEFReader' in window) {
+                try {
+                    const ndef = new NDEFReader();
+                    await ndef.scan();
+                    ndef.onreading = event => {
+                        if (isScanModeActive && currentActiveTab === "scan-tab") {
+                            const decoder = new TextDecoder();
+                            for (const record of event.message.records) {
+                                processBusFareAndSound(decoder.decode(record.data));
+                            }
+                        }
+                    };
+                } catch (error) {
+                    statusDiv.innerText = `센서 가동 실패: ${error}`;
+                }
+            } else {
+                statusDiv.innerText = "💡 PC 가상 시뮬레이션 상태입니다. 아래의 수동 테스트 버튼을 사용하세요.";
+                document.getElementById('v-scan-btn').style.display = 'block';
+                document.getElementById('v-error-btn').style.display = 'block';
+            }
+        }
+    }
+
+    function updateScanButtonUI() {
+        const btn = document.getElementById('scan-toggle-btn');
+        if (isScanModeActive) {
+            btn.innerText = "단말기 태그 기능 끄기 (현재: 🟢 작동중)";
+            btn.style.backgroundColor = "#ef4444"; 
+        } else {
+            btn.innerText = "단말기 태그 기능 켜기 (현재: 🔴 정지됨)";
+            btn.style.backgroundColor = "#3b82f6"; 
+            document.getElementById('v-scan-btn').style.display = 'none';
+            document.getElementById('v-error-btn').style.display = 'none';
         }
     }
 
     function triggerVirtualScan() {
-        if(!isScanModeActive) return alert("단말기 태그 활성화를 먼저 켜주세요.");
+        if(!isScanModeActive || currentActiveTab !== "scan-tab") {
+            return alert("탑승 인식 탭에서 단말기 태그 스위치를 먼저 켜주셔야 작동합니다.");
+        }
         processBusFareAndSound(virtualRFIDStorage);
     }
 
     function triggerVirtualErrorScan() {
-        if(!isScanModeActive) return alert("단말기 태그 활성화를 먼저 켜주세요.");
+        if(!isScanModeActive || currentActiveTab !== "scan-tab") {
+            return alert("탑승 인식 탭에서 단말기 태그 스위치를 먼저 켜주셔야 작동합니다.");
+        }
         processBusFareAndSound("부적합한_규격_카드");
     }
 
     async function processBusFareAndSound(rawPayload) {
+        if (!isScanModeActive || currentActiveTab !== "scan-tab") {
+            return; 
+        }
+
         const statusDiv = document.getElementById('scan-status');
         
+        // 💡 변경 포인트: 카드가 잘못되었거나 데이터 포맷이 일치하지 않을 때의 안내 방송 스크립트 수정
         if (!rawPayload || rawPayload.split('|').length < 6) {
-            statusDiv.innerHTML = `<span style="color:red; font-weight:bold; font-size:16px;">❌ 카드가 잘못되었습니다.</span>`;
-            safeSpeak("카드가 잘못되었습니다.");
-            if(player && typeof player.stopVideo === 'function') player.stopVideo();
+            statusDiv.innerHTML = `<span style="color:red; font-weight:bold; font-size:16px;">❌ 데이터가 없는 카드입니다.</span>`;
+            safeSpeak("데이터가 없는 카드는 다른 카드를 사용하여 주세요");
             return;
         }
 
@@ -654,8 +793,8 @@
         const endTime = convertToSeconds(endStr);
         
         let duration = endTime - startTime;
-        if (duration <= 0 || duration > 3) {
-            duration = 3; 
+        if (duration <= 0 || duration > 3.05) {
+            duration = 3.0; 
         }
 
         statusDiv.innerHTML = `
@@ -676,7 +815,7 @@
             player.playVideo();
             player.unMute();
 
-            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 [1등] 나만의 알림음 재생 시작 (설정 시간: ${duration}초)</span>`;
+            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 [1등] 나만의 알림음 재생 시작 (설정 시간: ${duration.toFixed(2)}초)</span>`;
 
             stopTimeout = setTimeout(() => {
                 player.stopVideo(); 
