@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RFID 유튜브 사운드 연동 시스템</title>
+    <title>MY PASS - 나만의 개성있는 교통카드</title>
     <style>
         :root {
-            --primary-color: #ef4444; /* 유튜브 레드 컬러 */
+            --primary-color: #3b82f6; /* 신뢰감을 주는 교통카드 블루 */
             --secondary-color: #10b981;
-            --bg-color: #f8fafc;
+            --bg-color: #f1f5f9;
         }
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -28,8 +28,14 @@
         h1 {
             text-align: center;
             color: var(--primary-color);
-            font-size: 22px;
-            margin-bottom: 20px;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 14px;
+            color: #64748b;
+            margin-bottom: 25px;
         }
         .tabs {
             display: flex;
@@ -66,6 +72,7 @@
         .row {
             display: flex;
             gap: 10px;
+            align-items: flex-end;
         }
         .row > div {
             flex: 1;
@@ -94,24 +101,35 @@
             transition: background 0.2s;
         }
         button:hover {
-            background-color: #dc2626;
+            background-color: #2563eb;
         }
         button.secondary {
             background-color: var(--secondary-color);
         }
         button.secondary:hover {
-            background-color: #059669;
+            background-color: #047857;
+        }
+        button.accent {
+            background-color: #4f46e5;
+        }
+        button.accent:hover {
+            background-color: #4338ca;
         }
         .status-box {
             margin-top: 15px;
             padding: 12px;
-            background-color: #f1f5f9;
+            background-color: #f8fafc;
             border-left: 4px solid #64748b;
             border-radius: 4px;
             font-size: 13px;
             word-break: break-all;
+            line-height: 1.5;
         }
-        /* 유튜브 플레이어를 화면에서 숨김 처리 */
+        .info-text {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
         #youtube-player-container {
             position: absolute;
             width: 1px;
@@ -127,111 +145,144 @@
 <body>
 
 <div class="container">
-    <h1>RFID 유튜브 사운드 제어 시스템</h1>
+    <h1>MY PASS</h1>
+    <div class="subtitle">나만의 개성있는 스마트 교통카드 시스템</div>
     
-    <!-- 탭 메뉴 -->
     <div class="tabs">
-        <button class="tab-btn active" onclick="openTab('register-tab')">카드 등록</button>
-        <button class="tab-btn" onclick="openTab('charge-tab')">미리 충전</button>
-        <button class="tab-btn" onclick="openTab('scan-tab')">인식 모드</button>
+        <button class="tab-btn active" onclick="openTab('register-tab')">카드 설정/등록</button>
+        <button class="tab-btn" onclick="openTab('charge-tab')">잔액 충전</button>
+        <button class="tab-btn" onclick="openTab('scan-tab')">버스 탑승 인식</button>
     </div>
 
-    <!-- 1. 카드 등록 탭 -->
+    <!-- 1. 카드 등록 및 연령 설정 탭 -->
     <div id="register-tab" class="tab-content active">
-        <h3>1. 유튜브 오디오 설정 및 RFID 등록</h3>
-        <div class="form-group">
-            <label for="yt-id">유튜브 영상 코드 (ID)</label>
-            <input type="text" id="yt-id" placeholder="예: dQw4w9WgXcQ" value="dQw4w9WgXcQ">
-        </div>
+        <h3>1. 카드 사용자 설정 및 연동</h3>
+        
         <div class="form-group row">
             <div>
-                <label for="yt-start">시작 시간 (초)</label>
-                <input type="number" id="yt-start" value="0" min="0">
+                <label for="user-age">사용자 연령대 설정</label>
+                <select id="user-age">
+                    <option value="어린이">어린이 (만 6세~12세)</option>
+                    <option value="청소년">청소년 (만 13세~18세)</option>
+                    <option value="일반">일반 (성인)</option>
+                    <option value="고령자">고령자 (만 65세 이상)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="yt-id">나만의 승차 알림음 (유튜브 ID)</label>
+            <input type="text" id="yt-id" placeholder="예: dQw4w9WgXcQ (릭앤롤)" value="dQw4w9WgXcQ">
+        </div>
+        
+        <div class="form-group row">
+            <div>
+                <label for="yt-start">알림음 시작 지점</label>
+                <input type="text" id="yt-start" placeholder="00:10 또는 10" value="00:10">
             </div>
             <div>
-                <label for="yt-end">종료 시간 (초)</label>
-                <input type="number" id="yt-end" value="5" min="1">
+                <label for="yt-end">알림음 종료 지점</label>
+                <input type="text" id="yt-end" placeholder="00:13 또는 13" value="00:13">
             </div>
         </div>
-        <button onclick="writeYoutubeToRFID()">스마트폰 RFID(NFC)에 설정 쓰기</button>
-        <div id="register-status" class="status-box">상태: 대기 중...</div>
+        
+        <button onclick="writePassToRFID()">스마트폰 NFC 기능으로 MY PASS 카드에 쓰기</button>
+        <div id="register-status" class="status-box">상태: 설정 대기 중...</div>
     </div>
 
-    <!-- 2. 미리 충전 탭 -->
+    <!-- 2. 충전 탭 -->
     <div id="charge-tab" class="tab-content">
-        <h3>2. 요금 충전 (Edge TTS 안내)</h3>
+        <h3>2. 교통카드 금액 충전</h3>
         <div class="form-group">
-            <label for="charge-amount">충전할 금액</label>
+            <label for="charge-amount">충전할 금액 선택</label>
             <select id="charge-amount">
-                <option value="5000">5,000 원</option>
-                <option value="10000">10,000 원</option>
-                <option value="30000">30,000 원</option>
+                <option value="5000">5,000 원 충전</option>
+                <option value="10000">10,000 원 충전</option>
+                <option value="30000">30,000 원 충전</option>
+                <option value="50000">5,0000 원 충전</option>
             </select>
         </div>
-        <button class="secondary" onclick="speakAndCharge()">Edge TTS 안내 및 충전</button>
-        <div id="charge-status" class="status-box">상태: 대기 중...</div>
+        <button class="secondary" onclick="speakAndCharge()">Edge TTS 안내 및 금액 충전</button>
+        <div id="charge-status" class="status-box">현재 카드 잔액: <span id="current-balance-display">0</span>원</div>
     </div>
 
-    <!-- 3. 인식 모드 탭 -->
+    <!-- 3. 탑승 인식 모드 탭 -->
     <div id="scan-tab" class="tab-content">
-        <h3>3. RFID 카드 태그 및 유튜브 소리 재생</h3>
+        <h3>3. 버스 단말기 태그 인식 모드</h3>
+        
+        <!-- 버스 노선/요금 카테고리 추가 폼 -->
         <div class="form-group">
-            <label for="category-select">카테고리 설정</label>
+            <label>새 버스 요금 카테고리 추가 (쿠키 저장)</label>
+            <div class="row">
+                <input type="text" id="new-bus-name" placeholder="예: 광역급행버스">
+                <input type="number" id="new-bus-fare" placeholder="기본 요금(원)" style="max-width: 120px;">
+                <button type="button" class="accent" style="margin-top:0; width:auto; white-space:nowrap;" onclick="addNewBusCategory()">노선 등록</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="category-select">탑승할 버스 종류 선택</label>
             <select id="category-select">
-                <option value="음악">매장 배경음악</option>
-                <option value="안내">안내 바이럴 방송</option>
-                <option value="이벤트">이벤트 효과음</option>
+                <!-- JavaScript 동적 주입 -->
             </select>
         </div>
-        <button onclick="startRFIDScan()">RFID 인식 모드 활성화</button>
-        <div id="scan-status" class="status-box">상태: 태그 대기 중...</div>
+        
+        <button onclick="startRFIDScan()">단말기 태그 활성화 (스마트폰용)</button>
+        
+        <!-- PC 시뮬레이션 제어기 -->
+        <button type="button" class="secondary" id="v-scan-btn" style="display:none;" onclick="triggerVirtualScan()">[PC 테스트] 정상 카드 찍기</button>
+        <button type="button" class="accent" id="v-error-btn" style="display:none; background-color:#64748b;" onclick="triggerVirtualErrorScan()">[PC 테스트] 잘못된 카드 찍기</button>
+        
+        <div id="scan-status" class="status-box">상태: 단말기 대기 중...</div>
     </div>
 </div>
 
-<!-- 숨겨진 유튜브 플레이어 배치 탑재 -->
 <div id="youtube-player-container">
     <div id="yt-hidden-player"></div>
 </div>
 
 <script>
-    // 가상 가동용 전역변수
-    let virtualRFIDStorage = "dQw4w9WgXcQ|0|5"; // 초기 기본 샘플 데이터 기입
+    // 전역 코어 변수 (교통카드 잔액 및 가상 공간)
+    let cardBalance = parseInt(localStorage.getItem('my_pass_balance')) || 0;
+    let virtualRFIDStorage = "일반|dQw4w9WgXcQ|00:10|00:13"; 
     let player; 
     let stopTimeout;
+    let isScanModeActive = false;
 
-    // 유튜브 iframe API 비동기 로드
+    // 기본 버스 요금 카테고리 목록 (형식: "버스이름:기본성인요금")
+    let busCategories = ["시내선형버스:1500", "마을순환버스:1200"];
+
+    // 유튜브 API 로드
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
     const firstScriptTag = document.getElementsByTagName('script')[0];
     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-    // 유튜브 API 준비 완료 이벤트
     function onYouTubeIframeAPIReady() {
         player = new YT.Player('yt-hidden-player', {
-            height: '1px',
-            width: '1px',
-            videoId: '',
-            events: {
-                'onReady': onPlayerReady,
-                'onStateChange': onPlayerStateChange
-            }
+            height: '1px', width: '1px', videoId: '',
+            events: { 'onReady': () => console.log("MY PASS 오디오 모듈 준비 완료") }
         });
     }
 
-    function onPlayerReady(event) {
-        console.log("유튜브 백그라운드 오디오 플레이어 준비 완료");
-    }
+    window.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('current-balance-display').innerText = cardBalance.toLocaleString();
+        loadBusCategoriesFromCookie();
+        updateBusSelect();
+    });
 
-    function onPlayerStateChange(event) {
-        // 영상 오류나 조기 종료 핸들링 시 활용 가능
-    }
-
-    // 탭 토글러
-    function openTab(tabId) {
-        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.getElementById(tabId).classList.add('active');
-        event.currentTarget.classList.add('active');
+    // 시간 -> 초 변환기
+    function convertToSeconds(timeStr) {
+        if (!timeStr) return 0;
+        const parts = timeStr.trim().split(':');
+        if (parts.length === 3) {
+            return (parseInt(parts[0], 10) * 3600) + (parseInt(parts[1], 10) * 60) + parseInt(parts[2], 10);
+        } else if (parts.length === 2) {
+            return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
+        } else if (parts.length === 1) {
+            return parseInt(parts[0], 10) || 0;
+        }
+        return 0;
     }
 
     // 쿠키 매니저
@@ -248,150 +299,219 @@
         return null;
     }
 
-    // [1] 유튜브 메타정보(ID|시작초|종료초)를 추출하여 RFID에 저장
-    async function writeYoutubeToRFID() {
-        const statusDiv = document.getElementById('register-status');
-        const ytId = document.getElementById('yt-id').value.trim();
-        const start = document.getElementById('yt-start').value || 0;
-        const end = document.getElementById('yt-end').value || 10;
-
-        if(!ytId) {
-            alert("유튜브 비디오 코드를 입력해 주세요.");
-            return;
-        }
-
-        // 압축 형태 포맷정의: "영상ID|시작시간|종료시간" -> 초경량 문자열 데이터화
-        const rfidPayload = `${ytId}|${start}|${end}`;
-
-        if ('NDEFReader' in window) {
-            try {
-                statusDiv.innerText = "스마트폰 뒷면에 카드를 밀착해 주세요...";
-                const ndef = new NDEFReader();
-                await ndef.write({
-                    records: [{ recordType: "text", data: rfidPayload }]
-                });
-                statusDiv.innerText = `🎉 무선 쓰기 완료: 유튜브 정보[${rfidPayload}]를 카드 내부에 각인했습니다.`;
-            } catch (error) {
-                statusDiv.innerText = `NFC 작성 실패: ${error}`;
-            }
-        } else {
-            // PC 테스트 시뮬레이션 인터페이스
-            statusDiv.innerText = "💡 [시뮬레이션 모드] 에뮬레이터 RFID 칩셋 공간에 유튜브 패키지 저장 중...";
-            setTimeout(() => {
-                virtualRFIDStorage = rfidPayload;
-                statusDiv.innerText = `🎉 [시뮬레이션 완료] 데이터 각인 성공: ${rfidPayload}`;
-            }, 1000);
+    // [버스 카테고리] 쿠키 로드
+    function loadBusCategoriesFromCookie() {
+        const saved = getCookie("bus_categories_list");
+        if (saved) {
+            try { busCategories = JSON.parse(saved); } catch(e) {}
         }
     }
 
-    // [2] 미리 충전 - Edge TTS 스피치 안내
+    // [버스 카테고리] 커스텀 생성 및 쿠키 저장
+    function addNewBusCategory() {
+        const nameInput = document.getElementById('new-bus-name');
+        const fareInput = document.getElementById('new-bus-fare');
+        const name = nameInput.value.trim();
+        const fare = fareInput.value.trim();
+
+        if(!name || !fare) return alert("버스 종류와 기본 요금을 모두 입력해 주세요.");
+
+        const combinedValue = `${name}:${fare}`;
+        if(busCategories.some(b => b.startsWith(name + ":"))) {
+            return alert("이미 존재하는 버스 종류입니다.");
+        }
+
+        busCategories.push(combinedValue);
+        setCookie("bus_categories_list", JSON.stringify(busCategories), 365 * 24 * 60 * 60); // 1년 저장
+        updateBusSelect();
+        
+        nameInput.value = "";
+        fareInput.value = "";
+        alert(`'${name}(요금: ${fare}원)' 노선 카테고리가 쿠키에 저장 및 추가되었습니다.`);
+    }
+
+    function updateBusSelect() {
+        const select = document.getElementById('category-select');
+        select.innerHTML = "";
+        busCategories.forEach(bus => {
+            const [busName, fare] = bus.split(':');
+            const opt = document.createElement('option');
+            opt.value = bus; // 데이터 연동을 위해 전체 통 기입
+            opt.innerText = `${busName} (${fare}원)`;
+            select.appendChild(opt);
+        });
+    }
+
+    function openTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    // [1] 교통카드 스펙 발급 및 RFID 주입
+    async function writePassToRFID() {
+        const statusDiv = document.getElementById('register-status');
+        const age = document.getElementById('user-age').value;
+        const ytId = document.getElementById('yt-id').value.trim();
+        const startRaw = document.getElementById('yt-start').value.trim();
+        const endRaw = document.getElementById('yt-end').value.trim();
+
+        if(!ytId || !startRaw || !endRaw) return alert("알림음 설정을 모두 완료해 주세요.");
+
+        // 데이터 포맷 구조 고도화: "연령대|유튜브ID|시작시간|종료시간"
+        const rfidPayload = `${age}|${ytId}|${startRaw}|${endRaw}`;
+
+        if ('NDEFReader' in window) {
+            try {
+                statusDiv.innerText = "스마트폰 뒷면에 MY PASS 교통카드를 접촉해 주세요...";
+                const ndef = new NDEFReader();
+                await ndef.write({ records: [{ recordType: "text", data: rfidPayload }] });
+                statusDiv.innerText = `🎉 카드 각인 성공: [${age}용 MY PASS 발급 완료]`;
+            } catch (error) {
+                statusDiv.innerText = `NFC 연동 실패: ${error}`;
+            }
+        } else {
+            statusDiv.innerText = "💡 [PC 환경 테스트] 입력하신 조건이 가상 교통카드에 세팅되었습니다.";
+            virtualRFIDStorage = rfidPayload;
+        }
+    }
+
+    // [2] 교통카드 잔액 충전 (Edge TTS 적용)
     function speakAndCharge() {
         const amountSelect = document.getElementById('charge-amount');
-        const amountText = amountSelect.options[amountSelect.selectedIndex].text;
-        const statusDiv = document.getElementById('charge-status');
+        const chargeValue = parseInt(amountSelect.value);
+        
+        cardBalance += chargeValue;
+        localStorage.setItem('my_pass_balance', cardBalance);
+        document.getElementById('current-balance-display').innerText = cardBalance.toLocaleString();
 
-        const phrase = `선택하신 스마트 충전 금액인 ${amountText} 결제가 대기 중입니다. 인식 탭에서 리더기에 접촉하십시오.`;
-        statusDiv.innerText = phrase;
-
+        const phrase = `교통카드에 ${chargeValue.toLocaleString()}원이 충전되었습니다. 현재 총 잔액은 ${cardBalance.toLocaleString()}원입니다.`;
+        
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(phrase);
             utterance.lang = 'ko-KR';
-            
-            const voices = window.speechSynthesis.getVoices();
-            const edgeVoice = voices.find(v => v.name.includes('Microsoft') || v.name.includes('Google'));
-            if (edgeVoice) utterance.voice = edgeVoice;
-
             window.speechSynthesis.speak(utterance);
+        } else {
+            alert(phrase);
         }
-        window.__chargeReservation = amountText;
     }
 
-    // [3] 인식 모드 - 카드 접촉 시 리딩 및 쿠키 가공 처리 후 유튜브 스트리밍 오디오 시작
+    // [3] 버스 단말기 인식 모드 활성화
     async function startRFIDScan() {
         const statusDiv = document.getElementById('scan-status');
-        const category = document.getElementById('category-select').value;
+        isScanModeActive = true;
 
         if ('NDEFReader' in window) {
             try {
                 const ndef = new NDEFReader();
                 await ndef.scan();
-                statusDiv.innerText = `[${category} 인식 작동 중] 스마트폰 뒷면에 RFID 태그를 찍어주세요.`;
+                statusDiv.innerText = "🚌 단말기가 켜졌습니다. 스마트폰 뒷면에 교통카드를 실물 접촉하세요.";
 
                 ndef.onreading = event => {
                     const decoder = new TextDecoder();
                     for (const record of event.message.records) {
-                        const rfidData = decoder.decode(record.data);
-                        playYoutubeFromRFIDData(rfidData, category);
+                        processBusFareAndSound(decoder.decode(record.data));
                     }
                 };
             } catch (error) {
-                statusDiv.innerText = `NFC 스캔 실행 불가: ${error}`;
+                statusDiv.innerText = `단말기 센서 오류: ${error}`;
             }
         } else {
-            // 시뮬레이션 트랙
-            statusDiv.innerText = `[${category} 시뮬레이션] 1.5초 후 RFID 모듈 접촉 감지 처리를 실행합니다.`;
-            setTimeout(() => {
-                playYoutubeFromRFIDData(virtualRFIDStorage, category);
-            }, 1500);
+            statusDiv.innerText = "💡 PC 브라우저 환경입니다. 아래의 수동 테스트 버튼을 사용하여 카드를 찍어보세요.";
+            document.getElementById('v-scan-btn').style.display = 'block';
+            document.getElementById('v-error-btn').style.display = 'block';
         }
     }
 
-    // RFID 원천 데이터를 복합 추출하여 쿠키 처리 후 오디오 실행
-    function playYoutubeFromRFIDData(rawPayload, category) {
+    function triggerVirtualScan() {
+        if(!isScanModeActive) return alert("먼저 '단말기 태그 활성화'를 눌러주세요.");
+        processBusFareAndSound(virtualRFIDStorage);
+    }
+
+    function triggerVirtualErrorScan() {
+        if(!isScanModeActive) return alert("먼저 '단말기 태그 활성화'를 눌러주세요.");
+        processBusFareAndSound("잘못된_포맷_데이터_덩어리");
+    }
+
+    // 교통카드 연령별 할인 및 요금 차단 계산 매커니즘
+    function processBusFareAndSound(rawPayload) {
         const statusDiv = document.getElementById('scan-status');
-        const currentCharge = window.__chargeReservation || "0원";
+        
+        // [필수 예외처리] 규격 데이터 조건 불일치 검사막
+        if (!rawPayload || rawPayload.split('|').length < 4) {
+            statusDiv.innerHTML = `<span style="color:red; font-weight:bold; font-size:16px;">❌ 카드가 잘못되었습니다.</span>`;
+            alert("카드가 잘못되었습니다.");
+            if(player && typeof player.stopVideo === 'function') player.stopVideo();
+            return;
+        }
 
-        // 요구 조건 충족: 쿠키 데이터에 잠시 임시 보관 처리 (유효수명 10초)
-        setCookie("temp_yt_payload", rawPayload, 10);
-        setCookie("temp_yt_category", category, 10);
+        // 버스 요금 카테고리 쿠키 설정용 연동
+        const selectedBusData = document.getElementById('category-select').value;
+        const [busName, baseFareStr] = selectedBusData.split(':');
+        const baseFare = parseInt(baseFareStr);
 
-        // 쿠키 파싱
-        const cookedData = getCookie("temp_yt_payload");
-        const cookedCategory = getCookie("temp_yt_category");
+        // 쿠키 저장 조건 충족 (10초 임시 세션 유지)
+        setCookie("temp_bus_payload", rawPayload, 10);
+        setCookie("temp_bus_category", busName, 10);
 
-        if(!cookedData) return;
+        // 쿠키 파싱 후 전개
+        const cookedPayload = getCookie("temp_bus_payload");
+        const cookedBusName = getCookie("temp_bus_category");
 
-        // "영상ID|시작초|종료초" 분할 파싱 구조화
-        const dataParts = cookedData.split('|');
-        const videoId = dataParts[0];
-        const startTime = parseInt(dataParts[1]) || 0;
-        const endTime = parseInt(dataParts[2]) || 10;
+        const [age, videoId, startStr, endStr] = cookedPayload.split('|');
+
+        // 연령대별 요금 할인율 차등 적용 정책
+        let discountRate = 1.0; 
+        if (age === "어린이") discountRate = 0.4;     // 60% 할인
+        if (age === "청소년") discountRate = 0.7;     // 30% 할인
+        if (age === "고령자") discountRate = 0.0;     // 100% 면제 무임승차
+
+        const finalFare = Math.round(baseFare * discountRate);
+
+        // 잔액 부족 검증 거름망
+        if (cardBalance < finalFare) {
+            statusDiv.innerHTML = `<span style="color:red; font-weight:bold; font-size:15px;">❌ 잔액이 부족합니다. (필요 요금: ${finalFare}원 / 현재 잔액: ${cardBalance}원)</span>`;
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(new SpeechSynthesisUtterance("잔액이 부족합니다."));
+            }
+            return;
+        }
+
+        // 잔액 차감 및 반영
+        cardBalance -= finalFare;
+        localStorage.setItem('my_pass_balance', cardBalance);
+        document.getElementById('current-balance-display').innerText = cardBalance.toLocaleString();
+
+        const startTime = convertToSeconds(startStr);
+        const endTime = convertToSeconds(endStr);
         const duration = endTime - startTime;
 
         statusDiv.innerHTML = `
-            <span style="color:blue; font-weight:bold;">✔ 태그 접촉 통신 성공!</span><br>
-            • 지정 카테고리: ${cookedCategory}<br>
-            • 요금 정산액: ${currentCharge}<br>
-            • 쿠키 파싱 대상 ID: <strong>${videoId}</strong> (${startTime}초 ~ ${endTime}초 재생)<br>
-            • 오디오 스트리밍 처리 완료.
+            <span style="color:green; font-weight:bold; font-size:15px;">🔔 삐빅 - 정상 처리되었습니다!</span><br>
+            • 탑승 노선(쿠키 확인): <strong>${cookedBusName}</strong><br>
+            • 카드 정보 종류: <strong>${age} Pass</strong> (${discountRate * 100}% 요금 적용)<br>
+            • 차감된 버스 요금: <span style="color:red; font-weight:bold;">${finalFare}원</span><br>
+            • 차감 후 남은 잔액: <strong>${cardBalance.toLocaleString()}원</strong><br>
         `;
 
-        // 유튜브 플레이어 소리 재생 실행
+        // 유튜브 커스텀 승차음 오디오 구동 트리거
         if (player && typeof player.loadVideoById === 'function') {
-            // 기존 타이머 클리어
             clearTimeout(stopTimeout);
 
-            player.loadVideoById({
-                videoId: videoId,
-                startSeconds: startTime
-            });
+            player.loadVideoById({ videoId: videoId, startSeconds: startTime });
             player.playVideo();
-            player.unMute(); // 음소거 강제 해제
+            player.unMute();
 
-            statusDiv.innerHTML += `<br><span style="color:red; font-weight:bold;">▶ 유튜브 음성 소리 출력 중... (${duration}초 후 자동 정지)</span>`;
+            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 나만의 개성 오디오 승차음 연주 중... (${duration}초)</span>`;
 
-            // 정확히 지정된 시간 간격(초) 재생 후 정지 타이머 작동
             stopTimeout = setTimeout(() => {
                 player.stopVideo();
-                statusDiv.innerHTML += `<br><span style="color:#666;">⏹ 오디오 지정 구간 종료 및 자동 차단 완료.</span>`;
+                statusDiv.innerHTML += `<br><span style="color:#666;">⏹ 오디오 출구가 종료되었습니다.</span>`;
             }, duration * 1000);
-        } else {
-            statusDiv.innerHTML += `<br><span style="color:orange;">⚠️ 유튜브 플레이어가 아직 로드되지 않았습니다. 잠시 후 다시 시도하세요.</span>`;
         }
-
-        // 충전 정산 플래그 초기화
-        window.__chargeReservation = "0원";
     }
 </script>
 
