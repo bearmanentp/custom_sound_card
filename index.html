@@ -308,6 +308,10 @@
     let currentActiveTab = "register-tab"; 
     let busCategories = ["시내버스:1500", "마을버스:1200", "광역급행버스:2800"];
 
+    // 오디오 동기화를 위한 전역 제어 변수들
+    let targetDuration = 3.0;
+    let postAnnouncement = "감사합니다.";
+
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
     const firstScriptTag = document.getElementsByTagName('script')[0];
@@ -318,8 +322,23 @@
         player = new YT.Player('yt-visible-player', {
             videoId: initialId,
             playerVars: { 'playsinline': 1, 'controls': 1, 'autoplay': 0, 'mute': 0 },
-            events: { 'onReady': () => console.log("플레이어 로드 완료") }
+            events: { 
+                'onReady': () => console.log("플레이어 로드 완료"),
+                'onStateChange': onPlayerStateChange // 💡 핵심 수정: 버퍼링이 끝나고 재생이 진짜 시작되는 시점을 잡는 리스너 연결
+            }
         });
+    }
+
+    // 💡 영상이 버퍼링을 끝내고 "실제로 소리를 내며 재생 시작(YT.PlayerState.PLAYING)"했을 때 타이머 가동
+    function onPlayerStateChange(event) {
+        if (event.data === YT.PlayerState.PLAYING) {
+            clearTimeout(stopTimeout);
+            // 영상이 정상 출력을 시작한 시점부터 기획된 정확한 초만큼만 대기 후 정지시킴
+            stopTimeout = setTimeout(() => {
+                player.stopVideo(); 
+                safeSpeak(postAnnouncement); 
+            }, targetDuration * 1000);
+        }
     }
 
     function loadPreviewVideo() {
@@ -550,7 +569,7 @@
         }
     }
 
-    // 단말기 켜기/끄기
+    // 단말기 제어
     async function toggleRFIDScan() {
         const statusDiv = document.getElementById('scan-status');
         if (isScanModeActive) {
@@ -596,12 +615,11 @@
     function triggerVirtualScan() { processBusFareAndSound(virtualRFIDStorage); }
     function triggerVirtualErrorScan() { processBusFareAndSound("부적합한_데이터_공백카드"); }
 
-    // 탑승 인식 및 요금 처리 코어 기능
+    // 탑승 가동 핵심 로직
     async function processBusFareAndSound(rawPayload) {
         if (!isScanModeActive || currentActiveTab !== "scan-tab") return; 
         const statusDiv = document.getElementById('scan-status');
         
-        // 1. 진짜 데이터가 없거나 깨져있는 규격 외 카드일 때만 초기화 후 등록 탭으로 전송
         if (!rawPayload || rawPayload.split('|').length < 6 || rawPayload.includes("부적합한")) {
             statusDiv.innerHTML = `<span style="color:#ef4444; font-weight:bold;">❌ 미등록 카드입니다. 새 카드로 포맷 후 등록 화면으로 이동합니다.</span>`;
             safeSpeak("데이터가 없는 카드는 다른 카드를 사용하여 주세요");
@@ -615,7 +633,6 @@
             return;
         }
 
-        // 2. 🟢 정상 카드 데이터 추출 (절대 날리지 않고 파싱)
         let parts = rawPayload.split('|');
         const name = parts[0];
         const age = parts[1];
@@ -641,25 +658,25 @@
             return;
         }
 
-        // 3. 요금 차감 후 기존 데이터를 훼손하지 않고 정상 '수정 저장'
         cardBalance -= finalFare;
         parts[2] = cardBalance; 
-        const updatedPayload = parts.join('|'); // 이름, 유튜브ID 등은 그대로 보존됨
+        const updatedPayload = parts.join('|');
 
         if ('NDEFReader' in window) {
             try {
                 const ndef = new NDEFReader();
                 await ndef.write({ records: [{ recordType: "text", data: updatedPayload }] });
-            } catch(e) { console.log("NFC 쓰기 실패:", e); }
+            } catch(e) {}
         } else {
-            virtualRFIDStorage = updatedPayload; // 가상 저장소에 잔액 차감 값 완벽 업데이트
+            virtualRFIDStorage = updatedPayload; 
         }
 
-        // 4. 사운드 음소거 해제 및 강제 재생 버그 완벽 수정
         const startTime = convertToSeconds(startStr);
         const endTime = convertToSeconds(endStr);
-        let duration = endTime - startTime;
-        if (duration <= 0 || duration > 3.05) duration = 3.0;
+        
+        // 💡 중요 수정: 로컬 동기적 타이머 대신 이벤트 리스너에 초단위 시간 전달
+        targetDuration = endTime - startTime;
+        if (targetDuration <= 0 || targetDuration > 3.05) targetDuration = 3.0;
 
         statusDiv.innerHTML = `
             <span style="color:#10b981; font-weight:bold; font-size:15px;">🚌 정상 승차 처리되었습니다. (카드 수정 완료)</span><br>
@@ -668,27 +685,22 @@
             • 카드 잔액: <span style="color:#2563eb; font-weight:bold;">${cardBalance.toLocaleString()}원</span>
         `;
 
-        const announcementText = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
+        postAnnouncement = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
 
-        // 사운드 재생 제어 파트 (오디오 씹힘 방지 전면 수정)
         if (player && typeof player.loadVideoById === 'function') {
-            clearTimeout(stopTimeout);
-            player.unMute(); // 1. 음소거 무조건 먼저 해제
-            player.setVolume(100); // 2. 볼륨 최대화
+            clearTimeout(stopTimeout); // 기존 예약된 오디오 정지 태스크 초기화
+            player.unMute(); 
+            player.setVolume(100); 
             
-            // 3. 시점 강제 빌드업 및 강제 재생 트리거
+            // 영상을 불러와 재생 대기열에 올립니다. 
+            // 실제로 재생이 시작되는 순간 상단의 onPlayerStateChange가 가동되어 비디오가 커트됩니다.
             player.loadVideoById({
                 videoId: videoId,
                 startSeconds: startTime
             });
             player.playVideo(); 
-
-            stopTimeout = setTimeout(() => {
-                player.stopVideo(); 
-                safeSpeak(announcementText); // 나만의 알림음이 끝난 후 안내 방송 출력
-            }, duration * 1000);
         } else {
-            safeSpeak(announcementText);
+            safeSpeak(postAnnouncement);
         }
     }
 </script>
