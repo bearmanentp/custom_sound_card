@@ -210,11 +210,11 @@
                 <input type="text" id="yt-start" placeholder="00:10" value="00:10">
             </div>
             <div>
-                <label for="yt-end">종료 지점 (최대 1초 제한)</label>
-                <input type="text" id="yt-end" placeholder="00:11" value="00:11">
+                <label for="yt-end">종료 지점 (최대 3초 제한)</label>
+                <input type="text" id="yt-end" placeholder="00:13" value="00:13">
             </div>
         </div>
-        <button type="button" style="margin-top:10px;" onclick="writePassToRFID()">스마트폰 NFC 기능으로 초기 카드 발급</button>
+        <button type="button" style="margin-top:10px;" onclick="writePassToRFID()">스마트폰 NFC 기능으로 카드 정보 저장/수정</button>
         <div id="register-status" class="status-box">상태: 설정 대기 중...</div>
     </div>
 
@@ -278,14 +278,12 @@
 </div>
 
 <script>
-    let virtualRFIDStorage = "홍길동|일반|15000|dQw4w9WgXcQ|00:10|00:11"; 
+    // 가상 저장소 초기 잔액을 15,000원으로 세팅해 둡니다.
+    let virtualRFIDStorage = "홍길동|일반|15000|dQw4w9WgXcQ|00:10|00:13"; 
     let player; 
     let stopTimeout;
     let isScanModeActive = false;
     let busCategories = ["시내버스:1500", "마을버스:1200", "광역급행버스:2800"];
-    
-    // 유튜브 정지 후 실행할 TTS 멘트를 보관할 전역 변수
-    let reservedTTSMessage = "";
 
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
@@ -296,25 +294,9 @@
         player = new YT.Player('yt-hidden-player', {
             height: '1px', width: '1px', videoId: '',
             events: { 
-                'onReady': () => console.log("MY PASS 준비 완료"),
-                'onStateChange': onPlayerStateChange // 유튜브 상태 변경 감지 이벤트 연결
+                'onReady': () => console.log("MY PASS 오디오 모듈 준비 완료")
             }
         });
-    }
-
-    // 💡 변경 포인트 1: 유튜브 음원이 강제로 멈추거나 끝났을 때 대기하던 TTS를 호출하는 리스너
-    function onPlayerStateChange(event) {
-        // YT.PlayerState.ENDED (0) 또는 유저 차단 등에 의해 정지(2) 되었을 때
-        if ((event.data === YT.PlayerState.ENDED || event.data === YT.PlayerState.PAUSED) && reservedTTSMessage) {
-            const msg = reservedTTSMessage;
-            reservedTTSMessage = ""; // 중복 실행 방지 위해 비우기
-            
-            const statusDiv = document.getElementById('scan-status');
-            if(statusDiv) {
-                statusDiv.innerHTML += `<br><span style="color:#059669; font-weight:bold;">🗣 알림음 종료! 안내 방송 출력 시작: "${msg}"</span>`;
-            }
-            safeSpeak(msg);
-        }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -475,6 +457,7 @@
         event.currentTarget.classList.add('active');
     }
 
+    // 💡 변경 포인트: 카드 설정/발급 시 기존 잔액 정보를 안전하게 유지하는 알고리즘 적용
     async function writePassToRFID() {
         const statusDiv = document.getElementById('register-status');
         const name = document.getElementById('user-name').value.trim() || "승객";
@@ -484,22 +467,50 @@
         const endRaw = document.getElementById('yt-end').value.trim();
 
         if(!ytId) return alert("유튜브 오디오 ID를 등록해주세요.");
-        
-        const rfidPayload = `${name}|${age}|0|${ytId}|${startRaw}|${endRaw}`;
 
         if ('NDEFReader' in window) {
+            // [실제 스마트폰 NFC 모드]
             try {
-                statusDiv.innerText = "스마트폰 뒷면에 공카드를 가까이 대주세요...";
+                statusDiv.innerText = "기존 카드 정보를 읽어오는 중... 뒷면에 카드를 밀착하세요.";
                 const ndef = new NDEFReader();
-                await ndef.write({ records: [{ recordType: "text", data: rfidPayload }] });
-                statusDiv.innerText = `🎉 발급 완료! [${name} / ${age} / 초기잔액 0원]`;
-                safeSpeak(`${name}님의 카드 발급이 완료되었습니다.`);
+                await ndef.scan();
+                
+                ndef.onreading = async (event) => {
+                    const decoder = new TextDecoder();
+                    let oldPayload = "";
+                    for (const record of event.message.records) {
+                        oldPayload = decoder.decode(record.data);
+                    }
+                    
+                    // 기존 잔액 가져오기 (없거나 깨졌다면 0원)
+                    let currentBalance = 0;
+                    if (oldPayload && oldPayload.split('|').length >= 3) {
+                        currentBalance = parseInt(oldPayload.split('|')[2]) || 0;
+                    }
+                    
+                    // 잔액을 살린 상태로 새로운 카드 데이터 조합
+                    const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
+                    
+                    await ndef.write({ records: [{ recordType: "text", data: rfidPayload }] });
+                    statusDiv.innerText = `🎉 설정 변경 완료! [소유자: ${name} / 연령: ${age} / 유지된 잔액: ${currentBalance.toLocaleString()}원]`;
+                    safeSpeak(`${name}님의 카드 설정이 변경되었습니다.`);
+                };
             } catch (error) {
-                statusDiv.innerText = `NFC 인식 에러: ${error}`;
+                statusDiv.innerText = `NFC 연동 실패: ${error}`;
             }
         } else {
-            statusDiv.innerText = "💡 [PC 환경 가상 각인 처리 성공]";
+            // [PC 가상 시뮬레이터 모드]
+            let currentBalance = 0;
+            if (virtualRFIDStorage && virtualRFIDStorage.split('|').length >= 3) {
+                currentBalance = parseInt(virtualRFIDStorage.split('|')[2]) || 0;
+            }
+
+            // 기존 잔액(currentBalance) 그대로 파싱해서 조합
+            const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
             virtualRFIDStorage = rfidPayload;
+            
+            statusDiv.innerHTML = `💡 [PC 가상 카드 정보 수정 완료] <br>• 이름: ${name} (${age}) <br>• <strong>유지된 기존 잔액: ${currentBalance.toLocaleString()}원</strong>`;
+            safeSpeak(`${name}님의 카드 정보가 수정되었습니다.`);
         }
     }
 
@@ -643,40 +654,39 @@
         const endTime = convertToSeconds(endStr);
         
         let duration = endTime - startTime;
-        if (duration <= 0 || duration > 1) {
-            duration = 1; 
+        if (duration <= 0 || duration > 3) {
+            duration = 3; 
         }
 
         statusDiv.innerHTML = `
-            <span style="color:green; font-weight:bold; font-size:15px;">🚌 삐빅- 승차가 처리되었습니다 (실시간 조회)</span><br>
+            <span style="color:green; font-weight:bold; font-size:15px;">🚌 삐빅- 승차가 처리되었습니다</span><br>
             • 카드 주인: <strong>${name}</strong> (${age} 패스)<br>
-            • 노선 정보(쿠키): <strong>${cookedBusName}</strong><br>
-            • 기본금 / 결제 차감액: ${baseFare}원 / <span style="color:red; font-weight:bold;">${finalFare}원 차감</span><br>
-            • <strong>조회된 현재 최종 잔액: ${cardBalance.toLocaleString()}원</strong><br>
+            • 노선 정보: <strong>${cookedBusName}</strong><br>
+            • 결제 금액: <span style="color:red; font-weight:bold;">${finalFare}원 차감</span><br>
+            • 최종 잔액: <strong>${cardBalance.toLocaleString()}원</strong><br>
         `;
 
-        // 💡 변경 포인트 2: 안내방송 문구를 전역 대기열에 예약만 해둠 (곧장 실행 안 함)
-        reservedTTSMessage = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
+        const announcementText = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
 
-        // 💡 변경 포인트 3: 유튜브 알림음 사운드를 1등으로 먼저 재생 시켜버림!
         if (player && typeof player.loadVideoById === 'function') {
             clearTimeout(stopTimeout);
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel(); // 겹침 원천 차단
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel(); 
 
             player.loadVideoById({ videoId: videoId, startSeconds: startTime });
             player.playVideo();
             player.unMute();
 
-            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 [선재생] 나만의 유튜브 알림음 출력 중 (최대 1초)...</span>`;
+            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 [1등] 나만의 알림음 재생 시작 (설정 시간: ${duration}초)</span>`;
 
-            // 설정해 둔 1초(duration)가 다 지나면 강제로 stopVideo() 시켜서 위의 'onPlayerStateChange' 이벤트가 가동되도록 유도함
             stopTimeout = setTimeout(() => {
-                player.stopVideo();
+                player.stopVideo(); 
+                statusDiv.innerHTML += `<br><span style="color:#059669; font-weight:bold;">🗣 [2등] 알림음 종료 완료! 안내 방송을 재생합니다: "${announcementText}"</span>`;
+                
+                safeSpeak(announcementText); 
             }, duration * 1000);
+
         } else {
-            // 유튜브 플레이어가 준비 안 되었을 땐 대기 없이 바로 TTS 실행
-            safeSpeak(reservedTTSMessage);
-            reservedTTSMessage = "";
+            safeSpeak(announcementText);
         }
     }
 </script>
