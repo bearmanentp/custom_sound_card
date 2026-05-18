@@ -276,7 +276,7 @@
         </button>
         
         <button type="button" class="secondary" id="v-scan-btn" style="display:none; margin-bottom:5px;" onclick="triggerVirtualScan()">[PC 테스트] 정상 카드 태그</button>
-        <button type="button" class="accent" id="v-error-btn" style="display:none; background-color:#64748b;" onclick="triggerVirtualErrorScan()">[PC 테스트] 잘못된 카드 태그</button>
+        <button type="button" class="accent" id="v-error-btn" style="display:none; background-color:#64748b;" onclick="triggerVirtualErrorScan()">[PC 테스트] 잘못된/새 카드 태그</button>
         
         <div id="scan-status" class="status-box">상태: 단말기 기능이 꺼져 있습니다.</div>
 
@@ -543,11 +543,9 @@
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         
         document.getElementById(tabId).classList.add('active');
-        if(event && event.currentTarget) {
-            event.currentTarget.classList.add('active');
-        } else {
-            document.getElementById('btn-' + tabId).classList.add('active');
-        }
+        
+        const targetBtn = document.getElementById('btn-' + tabId);
+        if(targetBtn) targetBtn.classList.add('active');
         
         currentActiveTab = tabId; 
 
@@ -558,13 +556,17 @@
         if (tabId === 'register-tab' || tabId === 'charge-tab') {
             isScanModeActive = false;
             updateScanButtonUI();
-            document.getElementById('scan-status').innerText = "상태: 다른 작업을 진행 중이므로 단말기가 일시 정지되었습니다.";
+            if(tabId === 'register-tab') {
+                document.getElementById('register-status').innerText = "상태: 새 카드를 연결하거나 정보를 작성해 주세요.";
+            } else {
+                document.getElementById('charge-status').innerText = "상태: 충전 버튼을 누르고 카드를 접촉해 주세요.";
+            }
         }
     }
 
     async function writePassToRFID() {
         const statusDiv = document.getElementById('register-status');
-        const name = document.getElementById('user-name').value.trim() || "승객";
+        const name = document.getElementById('user-name').value.trim() || "새사용자";
         const age = document.getElementById('user-age').value;
         const ytId = document.getElementById('yt-id').value.trim();
         const startRaw = document.getElementById('yt-start').value.trim();
@@ -580,7 +582,7 @@
 
         if ('NDEFReader' in window) {
             try {
-                statusDiv.innerText = "기존 카드 정보를 읽어오는 중... 뒷면에 카드를 밀착하세요.";
+                statusDiv.innerText = "카드에 신규 데이터를 기록하는 중... 뒷면에 카드를 밀착하세요.";
                 const ndef = new NDEFReader();
                 await ndef.scan();
                 
@@ -601,23 +603,23 @@
                     const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
                     
                     await ndef.write({ records: [{ recordType: "text", data: rfidPayload }] });
-                    statusDiv.innerText = `🎉 설정 변경 완료! [소유자: ${name} / 연령: ${age} / 유지된 잔액: ${currentBalance.toLocaleString()}원]`;
-                    safeSpeak(`${name}님의 카드 설정이 변경되었습니다.`);
+                    statusDiv.innerText = `🎉 신규 카드 등록 성공! [소유자: ${name} / 연령: ${age} / 초기잔액: ${currentBalance.toLocaleString()}원]`;
+                    safeSpeak(`${name}님의 카드가 성공적으로 등록되었습니다.`);
                 };
             } catch (error) {
                 statusDiv.innerText = `NFC 연동 실패: ${error}`;
             }
         } else {
             let currentBalance = 0;
-            if (virtualRFIDStorage && virtualRFIDStorage.split('|').length >= 3) {
+            if (virtualRFIDStorage && virtualRFIDStorage.split('|').length >= 3 && virtualRFIDStorage !== "부적합한_규격_카드") {
                 currentBalance = parseInt(virtualRFIDStorage.split('|')[2]) || 0;
             }
 
             const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
             virtualRFIDStorage = rfidPayload;
             
-            statusDiv.innerHTML = `💡 [PC 가상 카드 정보 수정 완료] <br>• 이름: ${name} (${age}) <br>• 시작구간: ${startRaw} ~ 종료구간: ${endRaw}<br>• <strong>유지된 기존 잔액: ${currentBalance.toLocaleString()}원</strong>`;
-            safeSpeak(`${name}님의 카드 정보가 수정되었습니다.`);
+            statusDiv.innerHTML = `💡 [새 카드 정보 등록/발급 완료] <br>• 이름: ${name} (${age}) <br>• 오디오: ${ytId} (${startRaw} ~ ${endRaw})<br>• <strong>설정된 충전 잔액: ${currentBalance.toLocaleString()}원</strong>`;
+            safeSpeak(`${name}님의 카드가 발급되었습니다.`);
         }
     }
 
@@ -641,7 +643,8 @@
                     }
 
                     if(!oldPayload || oldPayload.split('|').length < 6) {
-                        statusDiv.innerText = "❌ 올바르지 않은 카드 규격입니다.";
+                        statusDiv.innerText = "❌ 데이터가 없는 새 카드입니다. 먼저 '카드 설정/등록' 탭에서 등록을 해주세요.";
+                        safeSpeak("데이터가 없는 카드는 다른 카드를 사용하여 주세요");
                         return;
                     }
 
@@ -659,7 +662,12 @@
             }
         } else {
             let parts = virtualRFIDStorage.split('|');
-            if(parts.length < 6) return alert("교통카드가 감지되지 않았습니다.");
+            if(parts.length < 6) {
+                statusDiv.innerText = "❌ 등록되지 않은 공백 카드입니다. 발급을 진행합니다.";
+                safeSpeak("데이터가 없는 카드는 다른 카드를 사용하여 주세요");
+                openTab('register-tab');
+                return;
+            }
             let currentBal = parseInt(parts[2]) || 0;
             let newBal = currentBal + inputChargeValue;
             parts[2] = newBal;
@@ -738,10 +746,16 @@
 
         const statusDiv = document.getElementById('scan-status');
         
-        // 💡 변경 포인트: 카드가 잘못되었거나 데이터 포맷이 일치하지 않을 때의 안내 방송 스크립트 수정
-        if (!rawPayload || rawPayload.split('|').length < 6) {
-            statusDiv.innerHTML = `<span style="color:red; font-weight:bold; font-size:16px;">❌ 데이터가 없는 카드입니다.</span>`;
+        // 💡 새 카드 가이드 포인트: 데이터가 유효하지 않다면 방송을 내보낸 후 자동으로 '카드 등록' 화면으로 유도합니다.
+        if (!rawPayload || rawPayload.split('|').length < 6 || rawPayload === "부적합한_규격_카드") {
+            statusDiv.innerHTML = `<span style="color:#e11d48; font-weight:bold; font-size:15px;">❌ 등록 데이터가 없는 카드입니다. 카드 등록 화면으로 이동합니다.</span>`;
+            
             safeSpeak("데이터가 없는 카드는 다른 카드를 사용하여 주세요");
+            
+            setTimeout(() => {
+                openTab('register-tab');
+                document.getElementById('register-status').innerHTML = `<span style="color:#2563eb; font-weight:bold;">📢 안내: 단말기에 찍었던 새 카드를 바로 등록할 수 있는 상태입니다. 이름과 유튜브 ID를 기입하고 하단 등록 버튼을 눌러주세요!</span>`;
+            }, 1200);
             return;
         }
 
@@ -815,12 +829,11 @@
             player.playVideo();
             player.unMute();
 
-            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 [1등] 나만의 알림음 재생 시작 (설정 시간: ${duration.toFixed(2)}초)</span>`;
+            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 나만의 알림음 재생 중 (${duration.toFixed(2)}초)</span>`;
 
             stopTimeout = setTimeout(() => {
                 player.stopVideo(); 
-                statusDiv.innerHTML += `<br><span style="color:#059669; font-weight:bold;">🗣 [2등] 알림음 종료 완료! 안내 방송을 재생합니다: "${announcementText}"</span>`;
-                
+                statusDiv.innerHTML += `<br><span style="color:#059669; font-weight:bold;">🗣 안내 방송 안내: "${announcementText}"</span>`;
                 safeSpeak(announcementText); 
             }, duration * 1000);
 
