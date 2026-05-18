@@ -305,10 +305,9 @@
     let player; 
     let stopTimeout;
     let isScanModeActive = false; 
-    let currentActiveTab = "register-tab"; 
+    let currentActiveTab = "register-tab"; // 탭 상태를 추적하는 변수
     let busCategories = ["시내버스:1500", "마을버스:1200", "광역급행버스:2800"];
 
-    // 오디오 동기화를 위한 전역 제어 변수들
     let targetDuration = 3.0;
     let postAnnouncement = "감사합니다.";
 
@@ -324,16 +323,16 @@
             playerVars: { 'playsinline': 1, 'controls': 1, 'autoplay': 0, 'mute': 0 },
             events: { 
                 'onReady': () => console.log("플레이어 로드 완료"),
-                'onStateChange': onPlayerStateChange // 💡 핵심 수정: 버퍼링이 끝나고 재생이 진짜 시작되는 시점을 잡는 리스너 연결
+                'onStateChange': onPlayerStateChange 
             }
         });
     }
 
-    // 💡 영상이 버퍼링을 끝내고 "실제로 소리를 내며 재생 시작(YT.PlayerState.PLAYING)"했을 때 타이머 가동
     function onPlayerStateChange(event) {
-        if (event.data === YT.PlayerState.PLAYING) {
+        // 💡 핵심 수정: 오직 'scan-tab'(탑승 인식) 탭에서 재생이 실행되었을 때만 타이머 커트 적용!
+        // 이 처리를 통해 'register-tab'(카드 설정) 탭에서는 자유롭게 긴 영상 재생 및 편집이 가능해집니다.
+        if (event.data === YT.PlayerState.PLAYING && currentActiveTab === "scan-tab") {
             clearTimeout(stopTimeout);
-            // 영상이 정상 출력을 시작한 시점부터 기획된 정확한 초만큼만 대기 후 정지시킴
             stopTimeout = setTimeout(() => {
                 player.stopVideo(); 
                 safeSpeak(postAnnouncement); 
@@ -477,7 +476,10 @@
         document.getElementById(tabId).classList.add('active');
         const targetBtn = document.getElementById('btn-' + tabId);
         if(targetBtn) targetBtn.classList.add('active');
-        currentActiveTab = tabId; 
+        
+        currentActiveTab = tabId; // 활성화된 탭 변수 동적 업데이트
+        clearTimeout(stopTimeout); // 혹시 실행 중일지 모를 타이머 클리어
+
         if (player && typeof player.pauseVideo === 'function') player.pauseVideo();
         if (tabId === 'register-tab' || tabId === 'charge-tab') {
             isScanModeActive = false;
@@ -615,7 +617,7 @@
     function triggerVirtualScan() { processBusFareAndSound(virtualRFIDStorage); }
     function triggerVirtualErrorScan() { processBusFareAndSound("부적합한_데이터_공백카드"); }
 
-    // 탑승 가동 핵심 로직
+    // 탑승 요금 정산 및 사운드 시스템
     async function processBusFareAndSound(rawPayload) {
         if (!isScanModeActive || currentActiveTab !== "scan-tab") return; 
         const statusDiv = document.getElementById('scan-status');
@@ -674,7 +676,6 @@
         const startTime = convertToSeconds(startStr);
         const endTime = convertToSeconds(endStr);
         
-        // 💡 중요 수정: 로컬 동기적 타이머 대신 이벤트 리스너에 초단위 시간 전달
         targetDuration = endTime - startTime;
         if (targetDuration <= 0 || targetDuration > 3.05) targetDuration = 3.0;
 
@@ -688,12 +689,10 @@
         postAnnouncement = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
 
         if (player && typeof player.loadVideoById === 'function') {
-            clearTimeout(stopTimeout); // 기존 예약된 오디오 정지 태스크 초기화
+            clearTimeout(stopTimeout); 
             player.unMute(); 
             player.setVolume(100); 
             
-            // 영상을 불러와 재생 대기열에 올립니다. 
-            // 실제로 재생이 시작되는 순간 상단의 onPlayerStateChange가 가동되어 비디오가 커트됩니다.
             player.loadVideoById({
                 videoId: videoId,
                 startSeconds: startTime
