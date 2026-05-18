@@ -301,6 +301,7 @@
 </div>
 
 <script>
+    // 기본 더미 데이터 구조
     let virtualRFIDStorage = "홍길동|일반|15000|dQw4w9WgXcQ|00:10.00|00:13.00"; 
     let player; 
     let stopTimeout;
@@ -322,7 +323,7 @@
                 'controls': 1
             },
             events: { 
-                'onReady': () => console.log("MY PASS 통합 미디어 플레이어 준비 완료")
+                'onReady': () => console.log("MY PASS 플레이어 로드 완료")
             }
         });
     }
@@ -348,7 +349,6 @@
 
         if(type === 'start') {
             document.getElementById('yt-start').value = formattedTime;
-            
             const endRaw = rawTime + 3.0;
             const endMin = Math.floor(endRaw / 60);
             const endSec = Math.floor(endRaw % 60);
@@ -357,13 +357,10 @@
         } else if(type === 'end') {
             const startStr = document.getElementById('yt-start').value;
             const startSec = convertToSeconds(startStr);
-            
-            if(rawTime <= startSec) {
-                return alert("종료 지점은 시작 지점보다 뒤여야 합니다.");
-            }
+            if(rawTime <= startSec) return alert("종료 지점은 시작 지점보다 뒤여야 합니다.");
             
             if(rawTime - startSec > 3) {
-                alert("알림음은 최대 3초까지만 재생 가능합니다! 자동으로 3초 구간으로 정렬됩니다.");
+                alert("알림음은 최대 3초입니다.");
                 const maxEndRaw = startSec + 3.0;
                 const maxEndMin = Math.floor(maxEndRaw / 60);
                 const maxEndSec = Math.floor(maxEndRaw % 60);
@@ -382,7 +379,6 @@
                 window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
             }
         }, { once: true });
-        
         loadBusCategoriesFromCookie();
         updateBusSelect();
     });
@@ -400,16 +396,13 @@
 
     function convertToSeconds(timeStr) {
         if (!timeStr) return 0;
-        
         let mainStr = timeStr.trim();
         let milli = 0;
-        
         if (mainStr.includes('.')) {
             const dotParts = mainStr.split('.');
             mainStr = dotParts[0]; 
             milli = parseFloat("0." + dotParts[1]) || 0; 
         }
-
         const parts = mainStr.split(':');
         if (parts.length === 2) {
             return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10) + milli;
@@ -442,44 +435,32 @@
         const fareInput = document.getElementById('bus-fare-input');
         const name = nameInput.value.trim();
         const fare = fareInput.value.trim();
-
-        if(!name || !fare) return alert("버스 이름과 요금을 바르게 입력해주세요.");
+        if(!name || !fare) return alert("데이터를 입력해주세요.");
 
         const existingIndex = busCategories.findIndex(b => b.startsWith(name + ":"));
         const combined = `${name}:${fare}`;
 
         if (existingIndex !== -1) {
             busCategories[existingIndex] = combined;
-            alert(`'${name}' 노선의 요금 정보가 ${fare}원으로 수정되었습니다.`);
         } else {
             busCategories.push(combined);
-            alert(`'${name}' 노선 카테고리가 새로 등록되었습니다.`);
         }
-
         setCookie("bus_panel_categories", JSON.stringify(busCategories), 365 * 24 * 60 * 60);
         updateBusSelect();
-        nameInput.value = "";
-        fareInput.value = "";
     }
 
     function deleteBusCategory() {
         const currentSelected = document.getElementById('category-select').value;
-        if(!currentSelected) return alert("삭제할 대상을 선택상자에서 먼저 골라주세요.");
-        
+        if(!currentSelected) return;
         const [targetName] = currentSelected.split(':');
-        
-        if(confirm(`'${targetName}' 카테고리를 삭제하시겠습니까?`)) {
-            busCategories = busCategories.filter(b => !b.startsWith(targetName + ":"));
-            setCookie("bus_panel_categories", JSON.stringify(busCategories), 365 * 24 * 60 * 60);
-            updateBusSelect();
-            alert("카테고리가 삭제되었습니다.");
-        }
+        busCategories = busCategories.filter(b => !b.startsWith(targetName + ":"));
+        setCookie("bus_panel_categories", JSON.stringify(busCategories), 365 * 24 * 60 * 60);
+        updateBusSelect();
     }
 
     function updateBusSelect() {
         const select = document.getElementById('category-select');
         select.innerHTML = "";
-        
         busCategories.forEach(bus => {
             const [busName, fare] = bus.split(':');
             const opt = document.createElement('option');
@@ -487,50 +468,26 @@
             opt.innerText = `${busName} (기본 ${fare}원)`;
             select.appendChild(opt);
         });
-
-        if(select.value) {
-            const [busName, fare] = select.value.split(':');
-            document.getElementById('bus-name-input').value = busName;
-            document.getElementById('bus-fare-input').value = fare;
-        }
         renderFareTable();
     }
 
     function renderFareTable() {
         const select = document.getElementById('category-select');
         const container = document.getElementById('fare-table-container');
-        
-        if(!select.value) {
-            container.innerHTML = "";
-            return;
-        }
+        if(!select.value) return;
 
         const [busName, fareStr] = select.value.split(':');
         const base = parseInt(fareStr);
-
-        const fareChild = Math.round(base * 0.4);
-        const fareYouth = Math.round(base * 0.7);
-        const fareAdult = base;
-        const fareSenior = 0;
-
-        document.getElementById('bus-name-input').value = busName;
-        document.getElementById('bus-fare-input').value = base;
-
         container.innerHTML = `
             <table class="fare-table">
                 <thead>
-                    <tr>
-                        <th>어린이 (40%)</th>
-                        <th>청소년 (70%)</th>
-                        <th>일반 (성인)</th>
-                        <th>고령자 (우대)</th>
-                    </tr>
+                    <tr><th>어린이 (40%)</th><th>청소년 (70%)</th><th>일반 (성인)</th><th>고령자 (우대)</th></tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="color:#059669; font-weight:bold;">${fareChild}원</td>
-                        <td style="color:#2563eb; font-weight:bold;">${fareYouth}원</td>
-                        <td style="color:#1e293b; font-weight:bold;">${fareAdult}원</td>
+                        <td style="color:#059669; font-weight:bold;">${Math.round(base * 0.4)}원</td>
+                        <td style="color:#2563eb; font-weight:bold;">${Math.round(base * 0.7)}원</td>
+                        <td style="color:#1e293b; font-weight:bold;">${base}원</td>
                         <td style="color:#dc2626; font-weight:bold;">우대(0원)</td>
                     </tr>
                 </tbody>
@@ -541,29 +498,19 @@
     function openTab(tabId) {
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        
         document.getElementById(tabId).classList.add('active');
-        
         const targetBtn = document.getElementById('btn-' + tabId);
         if(targetBtn) targetBtn.classList.add('active');
-        
         currentActiveTab = tabId; 
 
-        if (player && typeof player.pauseVideo === 'function') {
-            player.pauseVideo();
-        }
-
+        if (player && typeof player.pauseVideo === 'function') player.pauseVideo();
         if (tabId === 'register-tab' || tabId === 'charge-tab') {
             isScanModeActive = false;
             updateScanButtonUI();
-            if(tabId === 'register-tab') {
-                document.getElementById('register-status').innerText = "상태: 새 카드를 연결하거나 정보를 작성해 주세요.";
-            } else {
-                document.getElementById('charge-status').innerText = "상태: 충전 버튼을 누르고 카드를 접촉해 주세요.";
-            }
         }
     }
 
+    // 💡 변경 포인트 1: 등록할 때 무조건 새 카드로 초기화 후 깔끔하게 리셋 저장 처리
     async function writePassToRFID() {
         const statusDiv = document.getElementById('register-status');
         const name = document.getElementById('user-name').value.trim() || "새사용자";
@@ -572,54 +519,36 @@
         const startRaw = document.getElementById('yt-start').value.trim();
         const endRaw = document.getElementById('yt-end').value.trim();
 
-        if(!ytId) return alert("유튜브 오디오 ID를 등록해주세요.");
-
         const sSec = convertToSeconds(startRaw);
         const eSec = convertToSeconds(endRaw);
-        if((eSec - sSec) > 3.05 || eSec <= sSec) { 
-            return alert("구간 설정 값에 오류가 있습니다. 종료 지점은 시작 지점보다 커야 하며 최대 3초 이내여야 합니다.");
+        if((eSec - sSec) > 3.05 || eSec <= sSec) return alert("시간 구간을 확인해 주세요.");
+
+        // 구조 초기화 후 데이터 조합 생성
+        let currentBalance = 0;
+        
+        // 규격 검증 및 리셋 로직
+        if(virtualRFIDStorage && virtualRFIDStorage.split('|').length === 6) {
+            currentBalance = parseInt(virtualRFIDStorage.split('|')[2]) || 0;
         }
+
+        const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
 
         if ('NDEFReader' in window) {
             try {
-                statusDiv.innerText = "카드에 신규 데이터를 기록하는 중... 뒷면에 카드를 밀착하세요.";
+                statusDiv.innerText = "카드에 데이터를 완전히 리셋 후 저장하는 중...";
                 const ndef = new NDEFReader();
                 await ndef.scan();
-                
-                ndef.onreading = async (event) => {
+                ndef.onreading = async () => {
                     if(currentActiveTab !== "register-tab") return;
-
-                    const decoder = new TextDecoder();
-                    let oldPayload = "";
-                    for (const record of event.message.records) {
-                        oldPayload = decoder.decode(record.data);
-                    }
-                    
-                    let currentBalance = 0;
-                    if (oldPayload && oldPayload.split('|').length >= 3) {
-                        currentBalance = parseInt(oldPayload.split('|')[2]) || 0;
-                    }
-                    
-                    const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
-                    
                     await ndef.write({ records: [{ recordType: "text", data: rfidPayload }] });
-                    statusDiv.innerText = `🎉 신규 카드 등록 성공! [소유자: ${name} / 연령: ${age} / 초기잔액: ${currentBalance.toLocaleString()}원]`;
-                    safeSpeak(`${name}님의 카드가 성공적으로 등록되었습니다.`);
+                    statusDiv.innerText = `🎉 카드 완전 등록 완료! [소유자: ${name} / 잔액: ${currentBalance}원]`;
+                    safeSpeak(`${name}님의 카드가 등록되었습니다.`);
                 };
-            } catch (error) {
-                statusDiv.innerText = `NFC 연동 실패: ${error}`;
-            }
+            } catch (error) { statusDiv.innerText = `NFC 연동 오류: ${error}`; }
         } else {
-            let currentBalance = 0;
-            if (virtualRFIDStorage && virtualRFIDStorage.split('|').length >= 3 && virtualRFIDStorage !== "부적합한_규격_카드") {
-                currentBalance = parseInt(virtualRFIDStorage.split('|')[2]) || 0;
-            }
-
-            const rfidPayload = `${name}|${age}|${currentBalance}|${ytId}|${startRaw}|${endRaw}`;
             virtualRFIDStorage = rfidPayload;
-            
-            statusDiv.innerHTML = `💡 [새 카드 정보 등록/발급 완료] <br>• 이름: ${name} (${age}) <br>• 오디오: ${ytId} (${startRaw} ~ ${endRaw})<br>• <strong>설정된 충전 잔액: ${currentBalance.toLocaleString()}원</strong>`;
-            safeSpeak(`${name}님의 카드가 발급되었습니다.`);
+            statusDiv.innerHTML = `💡 [새 카드로 리셋 및 등록 완료] <br>• 이름: ${name} (${age})<br>• 잔액: ${currentBalance}원`;
+            safeSpeak(`${name}님의 카드가 등록되었습니다.`);
         }
     }
 
@@ -631,63 +560,57 @@
             try {
                 const ndef = new NDEFReader();
                 await ndef.scan();
-                statusDiv.innerText = `📡 [충전 대기] 카드를 휴대폰 뒷면에 접촉하세요. (+${inputChargeValue}원 누적)`;
-
+                statusDiv.innerText = "📡 카드를 대어 주세요.";
                 ndef.onreading = async (event) => {
                     if(currentActiveTab !== "charge-tab") return;
-
                     const decoder = new TextDecoder();
                     let oldPayload = "";
-                    for (const record of event.message.records) {
-                        oldPayload = decoder.decode(record.data);
-                    }
+                    for (const record of event.message.records) oldPayload = decoder.decode(record.data);
 
+                    // 💡 변경 포인트 2: 충전 시 데이터가 깨져있으면 새 카드로 리셋 처리
                     if(!oldPayload || oldPayload.split('|').length < 6) {
-                        statusDiv.innerText = "❌ 데이터가 없는 새 카드입니다. 먼저 '카드 설정/등록' 탭에서 등록을 해주세요.";
+                        statusDiv.innerText = "데이터가 없어 새 카드로 리셋합니다. 등록 탭으로 이동합니다.";
                         safeSpeak("데이터가 없는 카드는 다른 카드를 사용하여 주세요");
+                        virtualRFIDStorage = "공백카드";
+                        setTimeout(() => openTab('register-tab'), 1000);
                         return;
                     }
 
                     let parts = oldPayload.split('|');
-                    let currentBal = parseInt(parts[2]) || 0;
-                    let newBal = currentBal + inputChargeValue;
+                    let newBal = (parseInt(parts[2]) || 0) + inputChargeValue;
                     parts[2] = newBal;
-
                     await ndef.write({ records: [{ recordType: "text", data: parts.join('|') }] });
-                    statusDiv.innerText = `✅ 충전 완료! [현재 카드 잔액: ${newBal}원]`;
-                    safeSpeak(`충전이 완료되었습니다. 잔액은 ${newBal}원입니다.`);
+                    statusDiv.innerText = `✅ 충전 완료! [잔액: ${newBal}원]`;
+                    safeSpeak(`충전이 완료되었습니다.`);
                 };
-            } catch (error) {
-                statusDiv.innerText = `NFC 센서 에러: ${error}`;
-            }
+            } catch (error) { statusDiv.innerText = `NFC 오류: ${error}`; }
         } else {
             let parts = virtualRFIDStorage.split('|');
             if(parts.length < 6) {
-                statusDiv.innerText = "❌ 등록되지 않은 공백 카드입니다. 발급을 진행합니다.";
+                statusDiv.innerText = "잘못된 데이터입니다. 새 카드로 강제 리셋합니다.";
                 safeSpeak("데이터가 없는 카드는 다른 카드를 사용하여 주세요");
-                openTab('register-tab');
+                virtualRFIDStorage = "공백카드";
+                setTimeout(() => openTab('register-tab'), 1000);
                 return;
             }
-            let currentBal = parseInt(parts[2]) || 0;
-            let newBal = currentBal + inputChargeValue;
+            let newBal = (parseInt(parts[2]) || 0) + inputChargeValue;
             parts[2] = newBal;
             virtualRFIDStorage = parts.join('|');
-            statusDiv.innerHTML = `💡 [PC 가상 충전 완료] <br>카드 기록 실시간 충전 잔액: <strong>${newBal}원</strong>`;
-            safeSpeak(`충전이 완료되었습니다. 잔액은 ${newBal}원입니다.`);
+            statusDiv.innerHTML = `💡 [충전 완료] 잔액: ${newBal}원`;
+            safeSpeak(`충전 완료.`);
         }
     }
 
     async function toggleRFIDScan() {
         const statusDiv = document.getElementById('scan-status');
-        
         if (isScanModeActive) {
             isScanModeActive = false;
             updateScanButtonUI();
-            statusDiv.innerText = "상태: 단말기 태그 기능이 사용자에 의해 꺼졌습니다. (요금 결제 정지)";
+            statusDiv.innerText = "상태: 단말기가 꺼졌습니다.";
         } else {
             isScanModeActive = true;
             updateScanButtonUI();
-            statusDiv.innerText = "🚌 실시간 잔액 조회 및 정산 결제를 시작합니다. 카드를 접촉해 주세요.";
+            statusDiv.innerText = "🚌 카드를 접촉해 주세요.";
 
             if ('NDEFReader' in window) {
                 try {
@@ -696,16 +619,11 @@
                     ndef.onreading = event => {
                         if (isScanModeActive && currentActiveTab === "scan-tab") {
                             const decoder = new TextDecoder();
-                            for (const record of event.message.records) {
-                                processBusFareAndSound(decoder.decode(record.data));
-                            }
+                            for (const record of event.message.records) processBusFareAndSound(decoder.decode(record.data));
                         }
                     };
-                } catch (error) {
-                    statusDiv.innerText = `센서 가동 실패: ${error}`;
-                }
+                } catch (error) { statusDiv.innerText = `센서 가동 오류: ${error}`; }
             } else {
-                statusDiv.innerText = "💡 PC 가상 시뮬레이션 상태입니다. 아래의 수동 테스트 버튼을 사용하세요.";
                 document.getElementById('v-scan-btn').style.display = 'block';
                 document.getElementById('v-error-btn').style.display = 'block';
             }
@@ -715,47 +633,37 @@
     function updateScanButtonUI() {
         const btn = document.getElementById('scan-toggle-btn');
         if (isScanModeActive) {
-            btn.innerText = "단말기 태그 기능 끄기 (현재: 🟢 작동중)";
+            btn.innerText = "단말기 기능 끄기 (🟢 작동중)";
             btn.style.backgroundColor = "#ef4444"; 
         } else {
-            btn.innerText = "단말기 태그 기능 켜기 (현재: 🔴 정지됨)";
+            btn.innerText = "단말기 기능 켜기 (🔴 정지됨)";
             btn.style.backgroundColor = "#3b82f6"; 
             document.getElementById('v-scan-btn').style.display = 'none';
             document.getElementById('v-error-btn').style.display = 'none';
         }
     }
 
-    function triggerVirtualScan() {
-        if(!isScanModeActive || currentActiveTab !== "scan-tab") {
-            return alert("탑승 인식 탭에서 단말기 태그 스위치를 먼저 켜주셔야 작동합니다.");
-        }
-        processBusFareAndSound(virtualRFIDStorage);
-    }
-
-    function triggerVirtualErrorScan() {
-        if(!isScanModeActive || currentActiveTab !== "scan-tab") {
-            return alert("탑승 인식 탭에서 단말기 태그 스위치를 먼저 켜주셔야 작동합니다.");
-        }
-        processBusFareAndSound("부적합한_규격_카드");
-    }
+    function triggerVirtualScan() { processBusFareAndSound(virtualRFIDStorage); }
+    function triggerVirtualErrorScan() { processBusFareAndSound("부적합한_깨진_데이터_혹은_빈_새카드"); }
 
     async function processBusFareAndSound(rawPayload) {
-        if (!isScanModeActive || currentActiveTab !== "scan-tab") {
-            return; 
-        }
-
+        if (!isScanModeActive || currentActiveTab !== "scan-tab") return; 
         const statusDiv = document.getElementById('scan-status');
         
-        // 💡 새 카드 가이드 포인트: 데이터가 유효하지 않다면 방송을 내보낸 후 자동으로 '카드 등록' 화면으로 유도합니다.
-        if (!rawPayload || rawPayload.split('|').length < 6 || rawPayload === "부적합한_규격_카드") {
-            statusDiv.innerHTML = `<span style="color:#e11d48; font-weight:bold; font-size:15px;">❌ 등록 데이터가 없는 카드입니다. 카드 등록 화면으로 이동합니다.</span>`;
+        // 💡 변경 포인트 3: 탑승 인식 시 데이터가 없거나 깨진 카드는 메모리를 '공백 상태'로 완전 청소 후 리셋 등록 지원
+        if (!rawPayload || rawPayload.split('|').length < 6 || rawPayload.includes("부적합한")) {
+            statusDiv.innerHTML = `<span style="color:#ef4444; font-weight:bold;">❌ 데이터 오류! 새 카드로 초기화하고 등록 화면으로 리다이렉트합니다.</span>`;
             
+            // 안내 방송 동기화
             safeSpeak("데이터가 없는 카드는 다른 카드를 사용하여 주세요");
+            
+            // 데이터 완전 초기화 (새 카드 공백 상태 마련)
+            virtualRFIDStorage = "새사용자|일반|0|dQw4w9WgXcQ|00:10.00|00:13.00"; 
             
             setTimeout(() => {
                 openTab('register-tab');
-                document.getElementById('register-status').innerHTML = `<span style="color:#2563eb; font-weight:bold;">📢 안내: 단말기에 찍었던 새 카드를 바로 등록할 수 있는 상태입니다. 이름과 유튜브 ID를 기입하고 하단 등록 버튼을 눌러주세요!</span>`;
-            }, 1200);
+                document.getElementById('register-status').innerHTML = `<span style="color:#3b82f6; font-weight:bold;">🆕 카드 리셋 완료! 원하시는 이름과 유튜브 구간을 적고 등록 버튼을 바로 누르면 새 카드로 저장됩니다.</span>`;
+            }, 1500);
             return;
         }
 
@@ -763,13 +671,7 @@
         const [busName, baseFareStr] = selectedBusData.split(':');
         const baseFare = parseInt(baseFareStr);
 
-        setCookie("temp_bus_payload", rawPayload, 10);
-        setCookie("temp_bus_category", busName, 10);
-
-        const cookedPayload = getCookie("temp_bus_payload");
-        const cookedBusName = getCookie("temp_bus_category");
-
-        let parts = cookedPayload.split('|');
+        let parts = rawPayload.split('|');
         const name = parts[0];
         const age = parts[1];
         let cardBalance = parseInt(parts[2]) || 0; 
@@ -785,7 +687,7 @@
         const finalFare = Math.round(baseFare * discountRate);
 
         if (cardBalance < finalFare) {
-            statusDiv.innerHTML = `<span style="color:red; font-weight:bold;">❌ 잔액이 부족합니다. (소유자: ${name} / 실시간 잔액: ${cardBalance}원)</span>`;
+            statusDiv.innerHTML = `<span style="color:red; font-weight:bold;">❌ 잔액 부족 (잔액: ${cardBalance}원)</span>`;
             safeSpeak("잔액이 부족합니다.");
             return;
         }
@@ -794,49 +696,37 @@
         parts[2] = cardBalance; 
         const updatedPayload = parts.join('|');
 
-        if ('NDEFReader' in window && navigator.userAgent.includes("Mobi")) {
+        if ('NDEFReader' in window) {
             try {
                 const ndef = new NDEFReader();
                 await ndef.write({ records: [{ recordType: "text", data: updatedPayload }] });
-            } catch(e) { console.error(e); }
+            } catch(e) {}
         } else {
             virtualRFIDStorage = updatedPayload; 
         }
 
         const startTime = convertToSeconds(startStr);
         const endTime = convertToSeconds(endStr);
-        
         let duration = endTime - startTime;
-        if (duration <= 0 || duration > 3.05) {
-            duration = 3.0; 
-        }
+        if (duration <= 0 || duration > 3.05) duration = 3.0;
 
         statusDiv.innerHTML = `
-            <span style="color:green; font-weight:bold; font-size:15px;">🚌 삐빅- 승차가 처리되었습니다</span><br>
-            • 카드 주인: <strong>${name}</strong> (${age} 패스)<br>
-            • 노선 정보: <strong>${cookedBusName}</strong><br>
-            • 결제 금액: <span style="color:red; font-weight:bold;">${finalFare}원 차감</span><br>
-            • 최종 잔액: <strong>${cardBalance.toLocaleString()}원</strong><br>
+            <span style="color:green; font-weight:bold;">🚌 승차 완료</span><br>
+            • 이름: ${name} (${age}) | 차감: ${finalFare}원 | 잔액: ${cardBalance}원
         `;
 
         const announcementText = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
 
         if (player && typeof player.loadVideoById === 'function') {
             clearTimeout(stopTimeout);
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel(); 
-
             player.loadVideoById({ videoId: videoId, startSeconds: startTime });
             player.playVideo();
             player.unMute();
 
-            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 나만의 알림음 재생 중 (${duration.toFixed(2)}초)</span>`;
-
             stopTimeout = setTimeout(() => {
                 player.stopVideo(); 
-                statusDiv.innerHTML += `<br><span style="color:#059669; font-weight:bold;">🗣 안내 방송 안내: "${announcementText}"</span>`;
                 safeSpeak(announcementText); 
             }, duration * 1000);
-
         } else {
             safeSpeak(announcementText);
         }
