@@ -283,6 +283,9 @@
     let stopTimeout;
     let isScanModeActive = false;
     let busCategories = ["시내버스:1500", "마을버스:1200", "광역급행버스:2800"];
+    
+    // 유튜브 정지 후 실행할 TTS 멘트를 보관할 전역 변수
+    let reservedTTSMessage = "";
 
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
@@ -292,8 +295,26 @@
     function onYouTubeIframeAPIReady() {
         player = new YT.Player('yt-hidden-player', {
             height: '1px', width: '1px', videoId: '',
-            events: { 'onReady': () => console.log("MY PASS 준비 완료") }
+            events: { 
+                'onReady': () => console.log("MY PASS 준비 완료"),
+                'onStateChange': onPlayerStateChange // 유튜브 상태 변경 감지 이벤트 연결
+            }
         });
+    }
+
+    // 💡 변경 포인트 1: 유튜브 음원이 강제로 멈추거나 끝났을 때 대기하던 TTS를 호출하는 리스너
+    function onPlayerStateChange(event) {
+        // YT.PlayerState.ENDED (0) 또는 유저 차단 등에 의해 정지(2) 되었을 때
+        if ((event.data === YT.PlayerState.ENDED || event.data === YT.PlayerState.PAUSED) && reservedTTSMessage) {
+            const msg = reservedTTSMessage;
+            reservedTTSMessage = ""; // 중복 실행 방지 위해 비우기
+            
+            const statusDiv = document.getElementById('scan-status');
+            if(statusDiv) {
+                statusDiv.innerHTML += `<br><span style="color:#059669; font-weight:bold;">🗣 알림음 종료! 안내 방송 출력 시작: "${msg}"</span>`;
+            }
+            safeSpeak(msg);
+        }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -308,19 +329,14 @@
         updateBusSelect();
     });
 
-    function safeSpeak(text, onCompleteCallback) {
+    function safeSpeak(text) {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel(); 
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'ko-KR';
-            
-            if (onCompleteCallback) {
-                utterance.onend = onCompleteCallback; 
-            }
             window.speechSynthesis.speak(utterance);
         } else {
             alert(text);
-            if (onCompleteCallback) onCompleteCallback();
         }
     }
 
@@ -639,25 +655,29 @@
             • <strong>조회된 현재 최종 잔액: ${cardBalance.toLocaleString()}원</strong><br>
         `;
 
-        // 🛠️ 멘트 시스템 전면 수정 적용 완료
-        const announcementText = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
+        // 💡 변경 포인트 2: 안내방송 문구를 전역 대기열에 예약만 해둠 (곧장 실행 안 함)
+        reservedTTSMessage = (age === "고령자") ? "우대 패스입니다." : "감사합니다.";
 
-        safeSpeak(announcementText, () => {
-            if (player && typeof player.loadVideoById === 'function') {
-                clearTimeout(stopTimeout);
+        // 💡 변경 포인트 3: 유튜브 알림음 사운드를 1등으로 먼저 재생 시켜버림!
+        if (player && typeof player.loadVideoById === 'function') {
+            clearTimeout(stopTimeout);
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel(); // 겹침 원천 차단
 
-                player.loadVideoById({ videoId: videoId, startSeconds: startTime });
-                player.playVideo();
-                player.unMute();
+            player.loadVideoById({ videoId: videoId, startSeconds: startTime });
+            player.playVideo();
+            player.unMute();
 
-                statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 안내방송 종료! 커스텀 알림음 재생 시작 (최대 1초)</span>`;
+            statusDiv.innerHTML += `<br><span style="color:blue; font-weight:bold;">🎶 [선재생] 나만의 유튜브 알림음 출력 중 (최대 1초)...</span>`;
 
-                stopTimeout = setTimeout(() => {
-                    player.stopVideo();
-                    statusDiv.innerHTML += `<br><span style="color:#64748b;">⏹ 1초 시간 초과로 오디오가 차단되었습니다.</span>`;
-                }, duration * 1000);
-            }
-        });
+            // 설정해 둔 1초(duration)가 다 지나면 강제로 stopVideo() 시켜서 위의 'onPlayerStateChange' 이벤트가 가동되도록 유도함
+            stopTimeout = setTimeout(() => {
+                player.stopVideo();
+            }, duration * 1000);
+        } else {
+            // 유튜브 플레이어가 준비 안 되었을 땐 대기 없이 바로 TTS 실행
+            safeSpeak(reservedTTSMessage);
+            reservedTTSMessage = "";
+        }
     }
 </script>
 
